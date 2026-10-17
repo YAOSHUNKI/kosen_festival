@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>呼び出し表示</title>
+<style>
+  :root {
+    --bg: #18202e; --panel: #222c3d; --ink: #f4efe4; --muted: #9aa3b4;
+    --accent: #f0603f; --ok: #5cc98a; --indigo: #7da2d6;
+    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden;
+    font-variant-numeric: tabular-nums;
+    display: grid; grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr auto; gap: 2vw; padding: 2vw;
+  }
+  .main {
+    background: var(--panel); border-radius: 2vw; padding: 3vw; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;
+  }
+  .label { font-size: 2.6vw; font-weight: 800; letter-spacing: .15em; color: var(--muted); }
+  .num { font-size: 22vw; font-weight: 900; line-height: 1; margin: 1vw 0; color: var(--accent); }
+  .num small { font-size: 5vw; margin-left: .5vw; color: var(--ink); }
+  .main.preparing .num { color: var(--indigo); font-size: 16vw; }
+  .msg { font-size: 2.4vw; font-weight: 700; line-height: 1.5; }
+  .marker-hint { display: flex; align-items: center; gap: 1.5vw; margin-top: 2vw; font-size: 2vw; color: var(--muted); }
+  .marker-hint .mk { width: 5vw; height: 5vw; background: #fff; padding: .5vw; border-radius: .5vw; }
+  .bar { width: 70%; height: 1.2vw; border-radius: .6vw; background: rgba(255,255,255,.12); margin-top: 2vw; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--indigo); transition: width .5s; }
+  .main.calling::after {
+    content: ""; position: absolute; inset: 0; border: .6vw solid var(--accent); border-radius: 2vw;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .15; } }
+
+  .side { display: flex; flex-direction: column; gap: 2vw; min-height: 0; }
+  .box { background: var(--panel); border-radius: 2vw; padding: 2vw; min-height: 0; }
+  .box h2 { margin: 0 0 1.2vw; font-size: 2vw; letter-spacing: .12em; color: var(--muted); }
+  .box.wait { flex: 1; overflow: hidden; }
+  .nums { display: flex; flex-wrap: wrap; gap: 1vw; }
+  .nums span { font-size: 4.2vw; font-weight: 900; min-width: 8vw; text-align: center; padding: .3vw 1vw; border-radius: 1vw; background: rgba(255,255,255,.06); }
+  .done .nums span { color: var(--ok); background: rgba(92,201,138,.12); }
+  .none { font-size: 2vw; color: var(--muted); }
+  .event { grid-column: 1 / -1; font-size: 2.2vw; font-weight: 700; text-align: center; min-height: 3.2vw; color: var(--ink); opacity: .9; }
+  .offline { position: fixed; top: 1vw; right: 1vw; background: var(--accent); color: #fff; padding: .6vw 1.2vw; border-radius: .8vw; font-size: 1.4vw; font-weight: 800; }
+</style>
+</head>
+<body>
+  <div class="main" id="main"></div>
+  <div class="side">
+    <div class="box wait"><h2>お待ちの番号</h2><div class="nums" id="wait"></div></div>
+    <div class="box done"><h2>できあがり</h2><div class="nums" id="done"></div></div>
+  </div>
+  <div class="event" id="event"></div>
+  <div class="offline" id="offline" hidden>ロボット未接続</div>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const mk = `<svg class="mk" viewBox="0 0 6 6" shape-rendering="crispEdges"><rect width="6" height="6"/><rect x="1" y="1" width="1" height="1" fill="#fff"/><rect x="3" y="1" width="2" height="1" fill="#fff"/><rect x="2" y="2" width="1" height="2" fill="#fff"/><rect x="4" y="3" width="1" height="1" fill="#fff"/><rect x="1" y="4" width="2" height="1" fill="#fff"/></svg>`;
+let last = "";
+
+function render(st) {
+  $("#offline").hidden = !!(st && st.connected);
+  const q = st && st.queue;
+  const key = JSON.stringify(q);
+  if (key === last) return;
+  last = key;
+  const main = $("#main");
+  if (!q) { main.className = "main"; main.innerHTML = `<div class="msg">準備中です</div>`; return; }
+
+  const head = q.waiting[0];
+  if (q.active) {
+    main.className = "main preparing";
+    main.innerHTML = `<div class="label">ただいま準備中</div>
+      <div class="num">${q.active.order_number}<small>番</small></div>
+      <div class="bar"><div style="width:${Math.round(q.progress * 100)}%"></div></div>
+      ${head ? `<div class="msg" style="margin-top:2vw">次は <b style="color:var(--accent)">${head.order_number}番</b> のお客様です</div>` : ""}`;
+  } else if (head) {
+    main.className = "main calling";
+    main.innerHTML = `<div class="label">お呼び出し中</div>
+      <div class="num">${head.order_number}<small>番</small></div>
+      <div class="msg">番号札のマーカーを<br>カメラにかざしてください</div>
+      <div class="marker-hint">${mk}<span>マーカー面をカメラに向けて 2〜3 秒</span></div>`;
+  } else {
+    main.className = "main";
+    main.innerHTML = `<div class="label">いらっしゃいませ</div><div class="msg" style="margin-top:2vw">ご注文は受付でどうぞ</div>`;
+  }
+  const rest = q.waiting.slice(q.active ? 0 : 1);
+  $("#wait").innerHTML = rest.length ? rest.map((o) => `<span>${o.order_number}</span>`).join("") : `<div class="none">—</div>`;
+  $("#done").innerHTML = q.recently_completed.length
+    ? q.recently_completed.slice(0, 6).map((n) => `<span>${n}</span>`).join("") : `<div class="none">—</div>`;
+  showEvent(q.last_event || "");
+}
+
+// お客様向けのイベントだけ数秒表示（取消などスタッフ向けの内容は出さない）
+const PUBLIC_EVENT = /まだ順番ではありません|ご用意ができました|準備中です|受付中にありません|準備を開始しました/;
+let lastEvent = "", eventTimer;
+function showEvent(text) {
+  if (text === lastEvent) return;
+  lastEvent = text;
+  clearTimeout(eventTimer);
+  if (!PUBLIC_EVENT.test(text)) { $("#event").textContent = ""; return; }
+  $("#event").textContent = text;
+  clearTimeout(eventTimer);
+  eventTimer = setTimeout(() => ($("#event").textContent = ""), 8000);
+}
+
+async function poll() {
+  try { render(await (await fetch("/api/status")).json()); } catch { render(null); }
+}
+poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>

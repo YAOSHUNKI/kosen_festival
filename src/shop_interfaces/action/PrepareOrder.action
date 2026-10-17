@@ -1,0 +1,8 @@
+# キューノード -> ロボット動作ノード。実機の動作ノードはこのアクションサーバを実装する
+Order order
+---
+bool success
+string message
+---
+float32 progress      # 0.0-1.0
+string current_step   # 例: "たこ焼き 2/3 個目"

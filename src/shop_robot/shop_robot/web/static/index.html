@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>注文受付</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="seal">注</span>注文受付</div>
+  <nav>
+    <button data-view="order" class="on">注文</button>
+    <button data-view="queue">待ち行列 <span class="badge" id="qcount">0</span></button>
+    <button data-view="products">商品</button>
+  </nav>
+  <span id="demo" class="mode-demo" hidden>デモモード</span>
+  <div class="conn" id="conn"><span class="dot"></span><span id="conntext">接続確認中…</span></div>
+</header>
+
+<main>
+  <!-- 注文 -->
+  <section class="view on" id="view-order">
+    <div class="order-layout">
+      <div>
+        <h2>商品をタップ</h2>
+        <div class="products" id="pgrid"></div>
+      </div>
+      <div class="panel card">
+        <div>
+          <h2>注文番号（番号札）</h2>
+          <div class="numbox">
+            <button id="numdown" aria-label="番号を1減らす">−</button>
+            <input id="num" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="注文番号">
+            <button id="numup" aria-label="番号を1増やす">＋</button>
+          </div>
+          <div class="hint"><span id="numrange"></span><button class="linkbtn" id="suggest"></button></div>
+        </div>
+        <div>
+          <h2>注文内容</h2>
+          <div class="lines" id="lines"></div>
+        </div>
+        <div class="total" id="totalrow" hidden><span>合計</span><span class="yen" id="total"></span></div>
+        <div class="actions">
+          <button class="btn ghost" id="clear">クリア</button>
+          <button class="btn primary" id="send" disabled>送信</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 待ち行列 -->
+  <section class="view" id="view-queue">
+    <div class="queue-layout">
+      <div class="card now" id="now"></div>
+      <div class="card">
+        <h2>待ち行列（上から順に呼び出し）</h2>
+        <div id="qlist"></div>
+        <h2 style="margin-top:20px">最近できあがった番号</h2>
+        <div class="chips" id="done"></div>
+        <details>
+          <summary>動作確認（カメラなしでマーカー読取を再現）</summary>
+          <div class="inline-form">
+            <input id="injnum" type="text" inputmode="numeric" placeholder="番号" style="width:110px">
+            <button class="btn small indigo" id="inject">マーカーを読んだことにする</button>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- 商品 -->
+  <section class="view" id="view-products">
+    <div class="card">
+      <h2>商品を追加</h2>
+      <form class="inline-form" id="addform">
+        <input name="id" type="text" inputmode="numeric" placeholder="商品ID" style="width:110px" required>
+        <input name="name" type="text" placeholder="商品名" style="flex:1; min-width:160px" required>
+        <input name="price" type="text" inputmode="numeric" placeholder="価格(円・任意)" style="width:140px">
+        <button class="btn small primary" type="submit">追加</button>
+      </form>
+      <p class="hint" style="justify-content:flex-start">商品IDはロボット側でどの商品を準備するかの識別に使われます。</p>
+      <table class="ptable" style="margin-top:8px">
+        <thead><tr><th>ID</th><th>商品名</th><th>価格(円)</th><th></th></tr></thead>
+        <tbody id="ptbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

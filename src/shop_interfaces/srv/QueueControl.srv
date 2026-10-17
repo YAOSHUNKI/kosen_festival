@@ -1,0 +1,11 @@
+# スタッフ操作（Web画面から呼ぶ）
+uint8 CANCEL=0        # 注文を取り消す（準備中ならロボット動作もキャンセル）
+uint8 POSTPONE=1      # 待ち注文を最後尾に回す（呼び出してもお客様が来ないとき）
+uint8 FORCE_START=2   # 先頭の注文をマーカーなしで準備開始（番号札紛失時など）
+uint8 INJECT_MARKER=3 # マーカーを読んだことにする（カメラなしでの動作確認用）
+
+uint8 command
+uint32 order_number
+---
+bool success
+string message

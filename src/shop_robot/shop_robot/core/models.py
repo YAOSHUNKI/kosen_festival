@@ -1,0 +1,44 @@
+"""ROS に依存しないデータモデル。ROS メッセージとの変換は nodes/ros_convert.py で行う。"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field, asdict
+
+
+@dataclass
+class OrderItem:
+    product_id: int
+    product_name: str
+    quantity: int
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "OrderItem":
+        return cls(int(d["product_id"]), str(d.get("product_name", "")), int(d["quantity"]))
+
+
+@dataclass
+class Order:
+    order_number: int
+    items: list[OrderItem]
+    stamp: float = field(default_factory=time.time)  # UNIX 秒
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Order":
+        return cls(
+            order_number=int(d["order_number"]),
+            items=[OrderItem.from_dict(i) for i in d["items"]],
+            stamp=float(d.get("stamp", time.time())),
+        )
+
+    def summary(self) -> str:
+        return " / ".join(f"{i.product_name or i.product_id}×{i.quantity}" for i in self.items)
+
+
+# QueueStatus.msg の state と同じ値
+STATE_IDLE = 0
+STATE_WAITING_MARKER = 1
+STATE_PREPARING = 2
+STATE_NAMES = {STATE_IDLE: "idle", STATE_WAITING_MARKER: "waiting_marker", STATE_PREPARING: "preparing"}

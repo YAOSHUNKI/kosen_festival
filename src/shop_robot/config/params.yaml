@@ -1,0 +1,35 @@
+# 店舗注文システムのパラメータ
+# aruco_dictionary は Web サーバと検出ノードで必ず同じにする（番号札の印刷もこの辞書で）
+
+order_web_server:
+  ros__parameters:
+    host: "0.0.0.0"          # 同じ Wi-Fi のタブレットから開けるよう全IFで待ち受け
+    port: 8000
+    products_file: "~/.shop_robot/products.json"
+    aruco_dictionary: "DICT_4X4_1000"   # 注文番号 0〜999
+    status_timeout: 3.0      # この秒数キュー状態が届かなければ「ロボット未接続」表示
+    confirm_timeout: 2.0     # 送信後、キューに入ったことを確認するまで待つ秒数
+
+order_queue:
+  ros__parameters:
+    state_file: "~/.shop_robot/queue_state.json"   # 再起動しても待ち行列を復元
+    status_rate: 1.0
+    cancel_timeout: 5.0      # 取消を送っても動作ノードが応答しないとき強制終了するまでの秒数
+
+aruco_detector:
+  ros__parameters:
+    aruco_dictionary: "DICT_4X4_1000"
+    camera_device: 0         # /dev/video0 を直接開く。-1 なら image_topic を購読
+    image_topic: "/image_raw"
+    frame_rate: 15.0
+    camera_width: 640
+    camera_height: 480
+    min_frames: 5            # 連続して見えたフレーム数で確定（誤検出防止）
+    cooldown_sec: 3.0        # 同じ番号を再送しない時間
+    publish_debug_image: false
+    show_window: false       # true で検出画面をウィンドウ表示（調整用）
+
+prepare_stub:
+  ros__parameters:
+    seconds_per_item: 3.0
+    fail_product_id: -1      # この商品IDで失敗させる（失敗時の流れの確認用）
