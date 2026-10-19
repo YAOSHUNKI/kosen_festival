@@ -39,6 +39,28 @@ function toast(msg, kind = "") {
   toastTimer = setTimeout(() => (t.className = kind), kind === "err" ? 4500 : 2500);
 }
 
+// ---------------------------------------------------------------- 確認ダイアログ
+// ブラウザ標準の確認ダイアログは「今後表示しない」設定やキオスク表示で黙ってキャンセル扱いになるため使わない
+function askConfirm(message, okLabel = "OK", danger = false) {
+  return new Promise((resolve) => {
+    const m = $("#modal");
+    $("#modal-msg").textContent = message;
+    const ok = $("#modal-ok");
+    ok.textContent = okLabel;
+    ok.className = "btn " + (danger ? "danger-fill" : "primary");
+    m.hidden = false;
+    ok.focus();
+    const done = (v) => {
+      m.hidden = true;
+      ok.onclick = $("#modal-cancel").onclick = m.onclick = null;
+      resolve(v);
+    };
+    ok.onclick = () => done(true);
+    $("#modal-cancel").onclick = () => done(false);
+    m.onclick = (e) => { if (e.target === m) done(false); };
+  });
+}
+
 // ---------------------------------------------------------------- タブ
 document.querySelectorAll("nav button").forEach((b) =>
   b.addEventListener("click", () => {
@@ -240,7 +262,7 @@ const CONFIRM = {
   force_start: (n) => `${n}番をマーカーなしでロボット動作開始しますか？`,
 };
 async function control(cmd, n) {
-  if (CONFIRM[cmd] && !confirm(CONFIRM[cmd](n))) return;
+  if (CONFIRM[cmd] && !(await askConfirm(CONFIRM[cmd](n), "はい", cmd === "cancel"))) return;
   try {
     const r = await api(`/api/queue/${cmd}`, { method: "POST", body: { order_number: n } });
     if (r.message) toast(r.message, "ok");
@@ -262,8 +284,8 @@ async function setNumbering(n) {
   } catch (err) { toast(err.message, "err"); }
   pollStatus();
 }
-$("#reset1").addEventListener("click", () => {
-  if (confirm("番号を1番から振り直しますか？\n（受付中の番号は自動で飛ばします）")) setNumbering(1);
+$("#reset1").addEventListener("click", async () => {
+  if (await askConfirm("番号を1番から振り直しますか？\n（受付中の番号は自動で飛ばします。注文は消えません）", "振り直す")) setNumbering(1);
 });
 $("#setnext").addEventListener("click", () => {
   const v = $("#nextnum").value.trim();
@@ -274,7 +296,7 @@ $("#setnext").addEventListener("click", () => {
 $("#clearall").addEventListener("click", async () => {
   const q = S.status && S.status.queue;
   const n = q ? q.pending.length + q.ready.length + (q.active ? 1 : 0) : 0;
-  if (!confirm(`全注文（${n}件）と完了履歴を消して、番号を1番に戻しますか？\nこの操作は元に戻せません。`)) return;
+  if (!(await askConfirm(`全注文（${n}件）と完了履歴を消して、番号を1番に戻しますか？\nこの操作は元に戻せません。`, "全注文をクリア", true))) return;
   try {
     await api("/api/queue/clear_all", { method: "POST", body: { order_number: 0 } });
     await setNumbering(1);
@@ -343,7 +365,7 @@ $("#ptbody").addEventListener("click", async (e) => {
       toast("保存しました", "ok");
     } else if (del) {
       const id = +del.dataset.del;
-      if (!confirm(`商品ID ${id} を削除しますか？`)) return;
+      if (!(await askConfirm(`商品ID ${id} を削除しますか？`, "削除", true))) return;
       await api(`/api/products/${id}`, { method: "DELETE" });
       toast("削除しました", "ok");
     } else return;

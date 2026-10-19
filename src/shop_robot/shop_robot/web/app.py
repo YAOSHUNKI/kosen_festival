@@ -72,6 +72,13 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     marker_count = dictionary_size(dict_name)
     app = FastAPI(title="店舗注文システム")
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.middleware("http")
+    async def no_cache(request, call_next):
+        # 更新後に古い画面・スクリプトが残らないよう、毎回サーバに確認させる（変化なしなら 304 で軽い）
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
     counter = NumberCounter(products.path.parent / "numbering.json")
     submit_lock = threading.Lock()
 

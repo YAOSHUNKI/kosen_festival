@@ -130,3 +130,10 @@ def test_numbering_reset_and_clear_all(tmp_path):
 def make_again(tmp_path):
     products = ProductStore(tmp_path / "p.json")
     return TestClient(create_app(LocalBridge(), products, "DICT_4X4_250")), None
+
+
+def test_no_cache_headers(tmp_path):
+    c, _ = make(tmp_path)
+    for path in ("/", "/display", "/static/app.js", "/api/status"):
+        assert c.get(path).headers["cache-control"] == "no-cache"
+    assert "app.js?v=" in c.get("/").text
