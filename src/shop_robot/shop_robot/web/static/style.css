@@ -181,3 +181,16 @@ summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 .modal-box p { margin: 0 0 18px; font-size: 17px; font-weight: 700; line-height: 1.6; white-space: pre-line; }
 .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btn.danger-fill { background: var(--accent); color: #fff; }
+
+/* ---- カメラ ---- */
+.cam-view { position: relative; aspect-ratio: 4 / 3; background: #1d222c; border-radius: 10px; overflow: hidden; }
+.cam-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cam-view.hidden { display: none; }
+.cam-off { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #cfc8b8; font-weight: 700; gap: 6px; padding: 12px; }
+.cam-off span { font-weight: 400; font-size: 12px; color: #9a9384; }
+.cam-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.lg::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.lg.ready::before { background: rgb(60,200,80); }
+.lg.wait::before { background: rgb(255,160,0); }
+.lg.none::before { background: rgb(230,60,60); }
+.cam-view img[hidden], .cam-off[hidden] { display: none; }

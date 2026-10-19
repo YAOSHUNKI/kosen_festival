@@ -28,6 +28,7 @@
 | `/shop/orders` | `shop_interfaces/Order` | Web → キュー | 注文番号・商品ID・個数（`OrderItem[]`）。RELIABLE / VOLATILE |
 | `/shop/queue_status` | `shop_interfaces/QueueStatus` | キュー → Web | 状態・準備中(`pending`)・呼び出し中(`ready`)・ロボット動作中(`active`)・完了番号・お客様向けメッセージ。TRANSIENT_LOCAL、変化時＋1Hz |
 | `/shop/marker_id` | `std_msgs/Int32` | 検出 → キュー | 確定したマーカーID（= 注文番号） |
+| `/shop/camera/image/compressed` | `sensor_msgs/CompressedImage` | 検出 → Web | カメラ確認用プレビュー（JPEG・マーカー枠入り） |
 | `/shop/queue_control` | `shop_interfaces/QueueControl` (srv) | Web → キュー | 取消 / 完成（呼び出し） / 準備中に戻す / マーカーなしで開始 / マーカー読取の再現 / 全注文クリア |
 | `/shop/prepare_order` | `shop_interfaces/PrepareOrder` (action) | キュー → 動作 | マーカー提示後のロボット動作（1注文）。feedback で進捗、cancel 対応 |
 
@@ -54,7 +55,14 @@ ros2 launch shop_robot shop_system.launch.py
 ```
 
 - スタッフ画面: `http://<PCのIP>:8000/`（同じ Wi-Fi のタブレット・スマホから）
-- 呼び出し表示: `http://<PCのIP>:8000/display`（お客様向けモニタで全画面表示）
+- 呼び出し表示: `http://<PCのIP>:8000/display`（お客様向けモニタで全画面表示。カメラ映像を出さないなら `/display?camera=0`）
+
+### カメラ映像
+
+aruco_detector がカメラ画像に検出結果を重ねた JPEG を配信し、スタッフ画面（待ち行列タブの「カメラ」）と
+呼び出し表示の右上に映す。マーカーの枠の色は **緑 = 呼び出し中（かざせば受け付ける） / 橙 = 準備中・動作中 /
+赤 = 受付中にない番号**。映像だけ見たいときは `http://<PCのIP>:8000/api/camera.mjpg`、静止画は `/api/camera.jpg`。
+映像は既定で鏡像（`preview_mirror`）。検出には影響しない。
 
 | 引数 | 既定 | 用途 |
 |---|---|---|
@@ -72,7 +80,8 @@ cd src/shop_robot
 pip3 install fastapi uvicorn opencv-contrib-python pillow
 python3 -m shop_robot.demo          # → http://localhost:8000/
 ```
-キューと準備動作を同じプロセス内で模擬する。サンプル商品は `./demo_data/products.json` に入る。
+キューとロボット動作を同じプロセス内で模擬する。サンプル商品は `./demo_data/products.json` に入る。
+`python3 -m shop_robot.demo --camera 0` で PC の Web カメラを使うと、番号札をかざしての読み取りとカメラ映像も試せる。
 
 ## 番号札（ArUco マーカー）の印刷
 

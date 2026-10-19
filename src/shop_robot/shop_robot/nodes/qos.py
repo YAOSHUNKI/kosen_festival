@@ -15,5 +15,6 @@ STATUS_QOS = QoSProfile(
 TOPIC_ORDERS = "shop/orders"
 TOPIC_STATUS = "shop/queue_status"
 TOPIC_MARKER = "shop/marker_id"
+TOPIC_CAMERA = "shop/camera/image/compressed"
 SRV_CONTROL = "shop/queue_control"
 ACTION_PREPARE = "shop/prepare_order"

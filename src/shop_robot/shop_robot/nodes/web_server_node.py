@@ -3,6 +3,7 @@
   pub  /shop/orders         shop_interfaces/Order       Web 画面で登録した注文を送信
   sub  /shop/queue_status   shop_interfaces/QueueStatus 画面表示用
   cli  /shop/queue_control  shop_interfaces/QueueControl スタッフ操作
+  sub  /shop/camera/image/compressed  sensor_msgs/CompressedImage  カメラ確認用（/api/camera.mjpg で配信）
 
 ブラウザから http://<このPCのIP>:<port>/ を開く（店頭タブレット・スマホでOK）。
 """
@@ -13,6 +14,8 @@ import rclpy
 import uvicorn
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import CompressedImage
 from shop_interfaces.msg import Order as OrderMsg
 from shop_interfaces.msg import QueueStatus
 from shop_interfaces.srv import QueueControl
@@ -20,7 +23,8 @@ from shop_interfaces.srv import QueueControl
 from ..core.models import Order
 from ..core.products import ProductStore
 from ..web.app import create_app
-from .qos import ORDERS_QOS, SRV_CONTROL, STATUS_QOS, TOPIC_ORDERS, TOPIC_STATUS
+from ..web.bridge import FrameBuffer
+from .qos import ORDERS_QOS, SRV_CONTROL, STATUS_QOS, TOPIC_CAMERA, TOPIC_ORDERS, TOPIC_STATUS
 from .ros_convert import order_to_msg, status_msg_to_snapshot
 
 COMMAND_IDS = {
@@ -52,6 +56,9 @@ class RosBridge(Node):
         self.pub = self.create_publisher(OrderMsg, TOPIC_ORDERS, ORDERS_QOS)
         self.create_subscription(QueueStatus, TOPIC_STATUS, self._on_status, STATUS_QOS)
         self.cli = self.create_client(QueueControl, SRV_CONTROL)
+        self.camera = FrameBuffer()
+        self.create_subscription(CompressedImage, TOPIC_CAMERA,
+                                 lambda m: self.camera.put(bytes(m.data)), qos_profile_sensor_data)
 
     def _on_status(self, msg: QueueStatus):
         snap = status_msg_to_snapshot(msg)

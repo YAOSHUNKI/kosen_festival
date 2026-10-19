@@ -200,6 +200,8 @@ function renderStatus() {
   $("#nexthint").textContent = st ? `次の番号札: ${st.next_number}番` : "";
   updateSendButton();
 
+  renderCamera(!!(st && st.camera));
+
   const q = st && st.queue;
   $("#qcount").textContent = q ? q.pending.length + q.ready.length + (q.active ? 1 : 0) : "–";
 
@@ -275,6 +277,29 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-cmd]");
   if (b) control(b.dataset.cmd, +b.dataset.n);
 });
+// ---------------------------------------------------------------- カメラ
+let camShown = true;
+try { camShown = localStorage.getItem("camShown") !== "0"; } catch { /* 保存できなくても動く */ }
+let camStreaming = false;
+function renderCamera(available) {
+  const img = $("#camimg");
+  $("#camview").classList.toggle("hidden", !camShown);
+  $("#camtoggle").textContent = camShown ? "非表示にする" : "表示する";
+  const want = camShown && available;
+  if (want && !camStreaming) img.src = "/api/camera.mjpg?t=" + Date.now();
+  if (!want && camStreaming) img.removeAttribute("src");   // 接続を切って帯域を使わない
+  camStreaming = want;
+  img.hidden = !available;
+  $("#camoff").hidden = available;
+}
+$("#camtoggle").addEventListener("click", () => {
+  camShown = !camShown;
+  try { localStorage.setItem("camShown", camShown ? "1" : "0"); } catch { /* 無視 */ }
+  renderCamera(!!(S.status && S.status.camera));
+});
+// 映像が途切れたら（サーバ再起動など）次の状態更新でつなぎ直す
+$("#camimg").addEventListener("error", () => { camStreaming = false; });
+
 // ---------------------------------------------------------------- 番号札のリセット
 async function setNumbering(n) {
   try {

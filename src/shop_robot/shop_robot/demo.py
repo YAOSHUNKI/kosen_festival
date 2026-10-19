@@ -3,8 +3,9 @@
     cd src/shop_robot && python3 -m shop_robot.demo
     → http://localhost:8000/ （スタッフ画面）, http://localhost:8000/display （呼び出し表示）
 
-キューと準備動作は同じプロセス内で模擬する。マーカーは「待ち行列」タブの
-「動作確認」から読んだことにできる。
+キューとロボット動作は同じプロセス内で模擬する。マーカーは「待ち行列」タブの
+「動作確認」から読んだことにできる。--camera 0 で PC の Web カメラを使えば、
+番号札をかざしての読み取りとカメラ映像の表示まで試せる。
 """
 import argparse
 from pathlib import Path
@@ -25,6 +26,8 @@ def main():
     ap.add_argument("--products", default="./demo_data/products.json")
     ap.add_argument("--dict", default="DICT_4X4_1000")
     ap.add_argument("--seconds-per-item", type=float, default=2.0)
+    ap.add_argument("--camera", default=None, help="カメラ番号（例: 0）または動画ファイル。省略時はカメラなし")
+    ap.add_argument("--no-mirror", action="store_true", help="カメラ映像を鏡像にしない")
     args = ap.parse_args()
 
     new = not Path(args.products).exists()
@@ -33,7 +36,10 @@ def main():
         for pid, name, price in SAMPLE:
             products.add(pid, name, price)
 
-    app = create_app(LocalBridge(args.seconds_per_item), products, args.dict)
+    bridge = LocalBridge(args.seconds_per_item, args.dict, mirror=not args.no_mirror)
+    if args.camera is not None:
+        bridge.start_camera(int(args.camera) if args.camera.isdigit() else args.camera)
+    app = create_app(bridge, products, args.dict)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

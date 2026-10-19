@@ -5,13 +5,14 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 from pathlib import Path
 
 import cv2
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -68,17 +69,33 @@ class NumberCounter:
             pass  # 保存できなくても動作は続ける
 
 
+class NoCacheMiddleware:
+    """更新後に古い画面・スクリプトが残らないよう、毎回サーバに確認させる（変化なしなら 304 で軽い）。
+    カメラのストリーミングを妨げないよう、素の ASGI ミドルウェアとして実装している。"""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"cache-control"]
+                headers.append((b"cache-control", b"no-cache"))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
 def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X4_1000") -> FastAPI:
     marker_count = dictionary_size(dict_name)
     app = FastAPI(title="店舗注文システム")
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-    @app.middleware("http")
-    async def no_cache(request, call_next):
-        # 更新後に古い画面・スクリプトが残らないよう、毎回サーバに確認させる（変化なしなら 304 で軽い）
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "no-cache"
-        return response
+    app.add_middleware(NoCacheMiddleware)
     counter = NumberCounter(products.path.parent / "numbering.json")
     submit_lock = threading.Lock()
 
@@ -118,7 +135,8 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     @app.get("/api/status")
     def status():
         st = bridge.status()
-        return {"connected": st is not None, "queue": st, "next_number": next_number(st)}
+        return {"connected": st is not None, "queue": st, "next_number": next_number(st),
+                "camera": bridge.camera.get() is not None}
 
     # --- 商品 -----------------------------------------------------------------
     @app.get("/api/products")
@@ -191,6 +209,32 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
         if not ok:
             raise HTTPException(400, msg)
         return {"ok": True, "message": msg}
+
+    # --- カメラ映像（検出結果入りのプレビュー） ------------------------------------------
+    @app.get("/api/camera.jpg")
+    def camera_snapshot():
+        f = bridge.camera.get()
+        if f is None:
+            raise HTTPException(404, "カメラ映像が届いていません")
+        return Response(f[0], media_type="image/jpeg")
+
+    @app.get("/api/camera.mjpg")
+    async def camera_stream(request: Request, max_frames: int = 0):
+        """MJPEG ストリーム（<img src> でそのまま動画として表示できる）。max_frames はテスト用"""
+        async def frames():
+            last, sent = None, 0
+            while not await request.is_disconnected():
+                f = bridge.camera.get()
+                if f is not None and f[1] != last:
+                    last = f[1]
+                    yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                           + str(len(f[0])).encode() + b"\r\n\r\n" + f[0] + b"\r\n")
+                    sent += 1
+                    if max_frames and sent >= max_frames:
+                        return
+                await asyncio.sleep(0.03)
+
+        return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
     # --- マーカー画像（番号札の確認・個別印刷用） ------------------------------------
     @app.get("/api/marker/{marker_id}.png")

@@ -40,6 +40,18 @@
   .box { background: var(--panel); border-radius: 2vw; padding: 2vw; min-height: 0; }
   .box h2 { margin: 0 0 1.2vw; font-size: 2vw; letter-spacing: .12em; color: var(--muted); }
   .box.pending { flex: 1; overflow: hidden; }
+  .box.cam { padding: 1.2vw; flex: none; }
+  .box.cam h2 { margin-bottom: .8vw; font-size: 1.5vw; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cam-view { aspect-ratio: 4 / 3; max-height: 38vh; margin: 0 auto; background: #111723; border-radius: 1.2vw; overflow: hidden; }
+  body.with-cam .box.robot { padding: 1.4vw 2vw; }
+  body.with-cam .box.robot h2 { margin-bottom: .6vw; }
+  body.with-cam .robot .num { font-size: 4.5vw; }
+  body.with-cam .side { gap: 1.2vw; }
+  body.with-cam .box.pending { padding: 1.4vw 2vw; }
+  body.with-cam .box.pending h2 { margin-bottom: .6vw; }
+  body.with-cam .nums span { font-size: 2.8vw; min-width: 5.5vw; }
+  .cam-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .box.cam[hidden] { display: none; }
   .robot .num { font-size: 6vw; font-weight: 900; color: var(--indigo); line-height: 1; }
   .robot .num small { font-size: 2.2vw; color: var(--ink); margin-left: .4vw; }
   .bar { height: 1vw; border-radius: .5vw; background: rgba(255,255,255,.12); margin-top: 1.2vw; overflow: hidden; }
@@ -55,6 +67,7 @@
 <body>
   <div class="main" id="main"></div>
   <div class="side">
+    <div class="box cam" id="cambox" hidden><h2>番号札をカメラに映してください</h2><div class="cam-view"><img id="camimg" alt=""></div></div>
     <div class="box robot"><h2>ロボット対応中</h2><div id="robot"></div></div>
     <div class="box pending"><h2>準備中の番号</h2><div class="nums" id="pending"></div></div>
   </div>
@@ -99,7 +112,21 @@ function numSize(count) {
   return "5.5vw";
 }
 
+// ---- カメラ（/display?camera=0 で非表示）
+const camEnabled = new URLSearchParams(location.search).get("camera") !== "0";
+let camStreaming = false;
+function renderCamera(available) {
+  const want = camEnabled && available;
+  if (want && !camStreaming) $("#camimg").src = "/api/camera.mjpg?t=" + Date.now();
+  if (!want && camStreaming) $("#camimg").removeAttribute("src");
+  camStreaming = want;
+  $("#cambox").hidden = !want;
+  document.body.classList.toggle("with-cam", want);
+}
+$("#camimg").addEventListener("error", () => { camStreaming = false; });
+
 function render(st) {
+  renderCamera(!!(st && st.camera));
   $("#offline").hidden = !!(st && st.connected);
   const q = st && st.queue;
   const key = JSON.stringify(q && { ...q, progress_text: "" });

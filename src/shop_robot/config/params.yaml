@@ -26,6 +26,11 @@ aruco_detector:
     camera_height: 480
     min_frames: 5            # 連続して見えたフレーム数で確定（誤検出防止）
     cooldown_sec: 3.0        # 同じ番号を再送しない時間
+    publish_preview: true    # Web 画面のカメラ映像用（検出結果入り JPEG を配信）
+    preview_rate: 10.0       # プレビューの送信レート [Hz]
+    preview_width: 640       # プレビューの横幅 [px]（大きいほど回線を使う）
+    preview_quality: 70      # JPEG 品質 0-100
+    preview_mirror: true     # 鏡像にする（お客様がカメラに向かってかざすときに自然な向き）
     publish_debug_image: false
     show_window: false       # true で検出画面をウィンドウ表示（調整用）
 

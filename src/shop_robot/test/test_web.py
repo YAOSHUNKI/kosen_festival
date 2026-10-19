@@ -14,7 +14,7 @@ def make(tmp_path, sec=0.05):
     products = ProductStore(tmp_path / "p.json")
     products.add(1, "たこ焼き", 300)
     products.add(2, "ラムネ", 150)
-    bridge = LocalBridge(seconds_per_item=sec)
+    bridge = LocalBridge(seconds_per_item=sec, dict_name="DICT_4X4_250")
     return TestClient(create_app(bridge, products, "DICT_4X4_250")), bridge
 
 
@@ -137,3 +137,48 @@ def test_no_cache_headers(tmp_path):
     for path in ("/", "/display", "/static/app.js", "/api/status"):
         assert c.get(path).headers["cache-control"] == "no-cache"
     assert "app.js?v=" in c.get("/").text
+
+
+def _marker_scene(marker_id):
+    import numpy as np
+    from shop_robot.core.aruco import generate_marker
+    img = np.full((480, 640, 3), 200, np.uint8)
+    m = generate_marker("DICT_4X4_250", marker_id, 160)
+    img[140:340, 220:420] = 255
+    img[160:320, 240:400] = cv2.cvtColor(m, cv2.COLOR_GRAY2BGR)
+    return img
+
+
+def test_camera_preview_and_marker(tmp_path):
+    c, bridge = make(tmp_path)
+    assert c.get("/api/status").json()["camera"] is False
+    assert c.get("/api/camera.jpg").status_code == 404
+
+    c.post("/api/orders", json={"order_number": 7, "items": [{"product_id": 1, "quantity": 1}]})
+    c.post("/api/queue/ready", json={"order_number": 7})
+    frame = _marker_scene(7)
+    fired = []
+    for _ in range(6):  # 5フレーム連続で確定
+        fired += bridge.feed_frame(frame)
+    assert fired == [7]
+    assert c.get("/api/status").json()["queue"]["state"] == 3  # マーカーでロボット動作開始
+
+    st = c.get("/api/status").json()
+    assert st["camera"] is True
+    jpg = c.get("/api/camera.jpg")
+    assert jpg.headers["content-type"] == "image/jpeg"
+    img = cv2.imdecode(np.frombuffer(jpg.content, np.uint8), cv2.IMREAD_COLOR)
+    assert img.shape[:2] == (480, 640)
+
+    r = c.get("/api/camera.mjpg?max_frames=1")
+    assert r.headers["content-type"].startswith("multipart/x-mixed-replace")
+    assert b"--frame" in r.content and b"image/jpeg" in r.content
+
+
+def test_camera_timeout():
+    from shop_robot.web.bridge import FrameBuffer
+    fb = FrameBuffer(timeout=0.05)
+    fb.put(b"x")
+    assert fb.get() == (b"x", 1)
+    time.sleep(0.08)
+    assert fb.get() is None

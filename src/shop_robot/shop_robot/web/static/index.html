@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>注文受付</title>
-<link rel="stylesheet" href="/static/style.css?v=4">
+<link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
 <header>
@@ -60,6 +60,14 @@
         <div class="card calling">
           <h2>呼び出し中 <span class="count" id="rcount"></span></h2>
           <div id="rlist"></div>
+        </div>
+        <div class="card cam">
+          <h2>カメラ <button class="linkbtn" id="camtoggle" style="float:right">非表示にする</button></h2>
+          <div class="cam-view" id="camview">
+            <img id="camimg" alt="カメラ映像">
+            <div class="cam-off" id="camoff">カメラ映像が届いていません<br><span>aruco_detector が起動しているか確認してください</span></div>
+          </div>
+          <div class="cam-legend"><span class="lg ready">呼び出し中</span><span class="lg wait">準備中・動作中</span><span class="lg none">受付外</span></div>
         </div>
         <div class="card now" id="now"></div>
         <div class="card">
@@ -119,6 +127,6 @@
     </div>
   </div>
 </div>
-<script src="/static/app.js?v=4"></script>
+<script src="/static/app.js?v=5"></script>
 </body>
 </html>
