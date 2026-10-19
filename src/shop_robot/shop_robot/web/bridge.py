@@ -13,7 +13,7 @@ from ..core.order_queue import (
     OrderQueue, QueueError, RESULT_CANCELED, RESULT_SUCCESS,
 )
 
-COMMANDS = ("cancel", "ready", "unready", "force_start", "inject_marker")
+COMMANDS = ("cancel", "ready", "unready", "force_start", "inject_marker", "clear_all")
 
 
 class Bridge(Protocol):
@@ -57,6 +57,9 @@ class LocalBridge:
                 q.mark_ready(order_number)
             elif command == "unready":
                 q.unmark_ready(order_number)
+            elif command == "clear_all":
+                if q.clear_all():
+                    self._cancel.set()
             elif command == "force_start":
                 self._start(order_number)
             elif command == "inject_marker":

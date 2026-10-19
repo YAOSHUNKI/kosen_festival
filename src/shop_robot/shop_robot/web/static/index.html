@@ -73,6 +73,20 @@
             </div>
           </details>
         </div>
+        <div class="card reset">
+          <h2>番号札のリセット</h2>
+          <div class="inline-form">
+            <button class="btn small indigo" id="reset1">1番から振り直す</button>
+            <span class="hint" style="margin:0">または</span>
+            <input id="nextnum" type="text" inputmode="numeric" placeholder="番号" style="width:80px">
+            <button class="btn small ghost" id="setnext">番から</button>
+          </div>
+          <p class="hint" id="nexthint" style="justify-content:flex-start"></p>
+          <div class="reset-danger">
+            <button class="btn small danger" id="clearall">全注文をクリア</button>
+            <p class="hint" style="justify-content:flex-start;margin:6px 0 0">営業開始・終了時用。準備中・呼び出し中の注文と完了履歴をすべて消し、番号も1番に戻します。</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>

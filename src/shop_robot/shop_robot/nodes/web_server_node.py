@@ -29,6 +29,7 @@ COMMAND_IDS = {
     "unready": QueueControl.Request.UNMARK_READY,
     "force_start": QueueControl.Request.FORCE_START,
     "inject_marker": QueueControl.Request.INJECT_MARKER,
+    "clear_all": QueueControl.Request.CLEAR_ALL,
 }
 
 

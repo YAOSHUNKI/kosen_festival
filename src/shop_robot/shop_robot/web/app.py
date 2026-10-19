@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 
@@ -40,14 +41,38 @@ class OrderIn(BaseModel):
 
 
 class ControlIn(BaseModel):
-    order_number: int = Field(ge=0)
+    order_number: int = Field(default=0, ge=0)
+
+
+class NumberingIn(BaseModel):
+    next_number: int = Field(ge=0)
+
+
+class NumberCounter:
+    """次の番号札の候補。products.json と同じフォルダに保存し、再起動しても続きから振る"""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.base = 1
+        try:
+            self.base = int(json.loads(path.read_text(encoding="utf-8"))["next"])
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+    def set(self, n: int) -> None:
+        self.base = n
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps({"next": n}), encoding="utf-8")
+        except OSError:
+            pass  # 保存できなくても動作は続ける
 
 
 def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X4_1000") -> FastAPI:
     marker_count = dictionary_size(dict_name)
     app = FastAPI(title="店舗注文システム")
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    last_number = {"n": None}
+    counter = NumberCounter(products.path.parent / "numbering.json")
     submit_lock = threading.Lock()
 
     def in_queue(status: dict | None) -> set[int]:
@@ -61,7 +86,7 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     def next_number(status: dict | None) -> int:
         """次に使う番号の候補（直前の番号+1、受付中の番号は飛ばす）"""
         used = in_queue(status)
-        n = 1 if last_number["n"] is None else last_number["n"] + 1
+        n = counter.base
         for _ in range(marker_count):
             n %= marker_count
             if n not in used:
@@ -140,8 +165,16 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
                 delivered = bridge.submit_order(Order(body.order_number, items))
             except QueueError as e:
                 raise HTTPException(409, str(e))
-            last_number["n"] = body.order_number
+            counter.set((body.order_number + 1) % marker_count)
         return {"ok": True, "delivered": delivered, "order_number": body.order_number}
+
+    @app.post("/api/numbering")
+    def set_numbering(body: NumberingIn):
+        """番号札の振り直し（次の候補を next_number にする）"""
+        if body.next_number >= marker_count:
+            raise HTTPException(400, f"番号は 0〜{marker_count - 1} にしてください")
+        counter.set(body.next_number)
+        return {"ok": True, "next_number": next_number(bridge.status())}
 
     @app.post("/api/queue/{command}")
     def queue_control(command: str, body: ControlIn):

@@ -4,6 +4,7 @@ uint8 MARK_READY=1    # 準備完了 → 呼び出し表示に番号を出す
 uint8 UNMARK_READY=2  # 呼び出しを取り消して準備中に戻す（押し間違い用）
 uint8 FORCE_START=3   # 呼び出し中の注文をマーカーなしでロボット動作開始（番号札紛失時など）
 uint8 INJECT_MARKER=4 # マーカーを読んだことにする（カメラなしでの動作確認用）
+uint8 CLEAR_ALL=5     # 全注文と完了履歴を消す（営業開始・終了時用。order_number は無視。動作中ならキャンセル）
 
 uint8 command
 uint32 order_number

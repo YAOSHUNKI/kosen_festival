@@ -28,7 +28,7 @@
 | `/shop/orders` | `shop_interfaces/Order` | Web → キュー | 注文番号・商品ID・個数（`OrderItem[]`）。RELIABLE / VOLATILE |
 | `/shop/queue_status` | `shop_interfaces/QueueStatus` | キュー → Web | 状態・準備中(`pending`)・呼び出し中(`ready`)・ロボット動作中(`active`)・完了番号・お客様向けメッセージ。TRANSIENT_LOCAL、変化時＋1Hz |
 | `/shop/marker_id` | `std_msgs/Int32` | 検出 → キュー | 確定したマーカーID（= 注文番号） |
-| `/shop/queue_control` | `shop_interfaces/QueueControl` (srv) | Web → キュー | 取消 / 完成（呼び出し） / 準備中に戻す / マーカーなしで開始 / マーカー読取の再現 |
+| `/shop/queue_control` | `shop_interfaces/QueueControl` (srv) | Web → キュー | 取消 / 完成（呼び出し） / 準備中に戻す / マーカーなしで開始 / マーカー読取の再現 / 全注文クリア |
 | `/shop/prepare_order` | `shop_interfaces/PrepareOrder` (action) | キュー → 動作 | マーカー提示後のロボット動作（1注文）。feedback で進捗、cancel 対応 |
 
 キューの動き：スタッフが「完成」を押した注文だけが呼び出し中になる（完成の順番は自由）。
@@ -93,6 +93,8 @@ A4 に 12 枚（マーカー 40mm）。**等倍（100%）で印刷**する。`--
    → 呼び出し表示に番号が出る（新しい番号は点滅＋呼び出し音。音は表示画面を一度クリックすると有効になる）
 4. お客様が札をカメラにかざす → ロボットが動作開始
 5. 押し間違えたら「準備中に戻す」、札をなくしたときは「マーカーなしで開始」
+6. 番号札を一巡したら「待ち行列」タブの「番号札のリセット」で 1番（または指定の番号）から振り直す。
+   営業開始・終了時は「全注文をクリア」で注文・完了履歴を消して 1番に戻す
 
 ## 実機の動作に置き換える
 
@@ -136,7 +138,8 @@ ros2 run rqt_image_view rqt_image_view /shop/aruco/debug_image          # publis
 | ファイル | 内容 |
 |---|---|
 | `~/.shop_robot/products.json` | 商品マスタ |
-| `~/.shop_robot/queue_state.json` | 待ち行列（営業日を切り替えるときはノード停止中に削除） |
+| `~/.shop_robot/numbering.json` | 次の番号札の候補（再起動しても続きから振る） |
+| `~/.shop_robot/queue_state.json` | 注文の状態（画面の「全注文をクリア」で空にできる） |
 
 ## 補足
 

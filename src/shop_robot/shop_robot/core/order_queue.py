@@ -137,6 +137,17 @@ class OrderQueue:
                         return "waiting"
             raise QueueError(f"注文番号 {order_number} は受付中にありません")
 
+    def clear_all(self) -> bool:
+        """営業開始・終了時のリセット。準備中・呼び出し中の注文と完了履歴を消す。
+        ロボット動作中なら True を返す（呼び出し側が動作をキャンセルし、終了時に finish_active(CANCELED) を呼ぶ）。"""
+        with self._lock:
+            n = len(self._pending) + len(self._ready)
+            self._pending.clear()
+            self._ready.clear()
+            self._completed.clear()
+            self._event(f"全注文をクリアしました（{n}件）")
+            return self._active is not None
+
     # --- マーカーとロボット動作 -------------------------------------------------
     def check_marker(self, marker_id: int) -> tuple[bool, str]:
         """マーカーIDでロボット動作を開始してよいか判定する（状態は変えない）。"""

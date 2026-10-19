@@ -81,6 +81,9 @@ class OrderQueueNode(Node):
                 self.q.mark_ready(n)
             elif req.command == QueueControl.Request.UNMARK_READY:
                 self.q.unmark_ready(n)
+            elif req.command == QueueControl.Request.CLEAR_ALL:
+                if self.q.clear_all():
+                    self.cancel_active()
             elif req.command == QueueControl.Request.FORCE_START:
                 ok, reason = self.start(n)
                 if not ok:

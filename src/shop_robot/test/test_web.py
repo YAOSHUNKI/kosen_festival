@@ -104,3 +104,29 @@ def test_marker_png_is_detectable(tmp_path):
     png = c.get("/api/marker/77.png").content
     img = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
     assert MarkerDetector("DICT_4X4_250").detect(img)[0] == [77]
+
+
+def test_numbering_reset_and_clear_all(tmp_path):
+    c, _ = make(tmp_path, sec=0.5)
+    for n in (5, 6):
+        c.post("/api/orders", json={"order_number": n, "items": [{"product_id": 1, "quantity": 2}]})
+    assert c.get("/api/status").json()["next_number"] == 7
+    # 1番から振り直し（受付中の番号は飛ばす）
+    assert c.post("/api/numbering", json={"next_number": 5}).json()["next_number"] == 7
+    assert c.post("/api/numbering", json={"next_number": 1}).json()["next_number"] == 1
+    assert c.post("/api/numbering", json={"next_number": 250}).status_code == 400
+    # 再起動しても続きから
+    c2, _ = make_again(tmp_path)
+    assert c2.get("/api/status").json()["next_number"] == 1
+
+    # 全注文クリア（動作中も含む）
+    c.post("/api/queue/ready", json={"order_number": 5})
+    c.post("/api/queue/force_start", json={"order_number": 5})
+    assert c.post("/api/queue/clear_all", json={}).status_code == 200
+    q = wait_state(c, 0)
+    assert q["pending"] == [] and q["ready"] == [] and q["recently_completed"] == []
+
+
+def make_again(tmp_path):
+    products = ProductStore(tmp_path / "p.json")
+    return TestClient(create_app(LocalBridge(), products, "DICT_4X4_250")), None

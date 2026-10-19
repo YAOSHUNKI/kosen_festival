@@ -147,3 +147,22 @@ def test_debouncer():
     assert d.update([], 0.4) == []           # 途切れたらリセット
     assert d.update([4], 0.5) == [] and d.update([4], 0.6) == []
     assert d.update([4], 2.3) == [4]         # 3フレーム連続 & クールダウン明け
+
+
+def test_queue_clear_all(tmp_path):
+    path = tmp_path / "queue.json"
+    q = OrderQueue(path)
+    for n in (1, 2, 3):
+        q.add(order(n))
+    q.mark_ready(1)
+    q.mark_ready(2)
+    q.start(2)
+    q.finish_active(RESULT_SUCCESS)
+    assert q.clear_all() is False
+    assert q.state == STATE_IDLE and q.completed == [] and q.pending == []
+    assert OrderQueue(path).pending == []  # 保存にも反映
+    # ロボット動作中は True（呼び出し側がキャンセル）
+    q.add(order(4)); q.mark_ready(4); q.start(4)
+    assert q.clear_all() is True
+    q.finish_active(RESULT_CANCELED)
+    assert q.state == STATE_IDLE

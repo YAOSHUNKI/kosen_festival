@@ -175,6 +175,7 @@ function renderStatus() {
   // 番号の自動入力
   if (st && !S.numTouched && !S.sending) $("#num").value = st.next_number;
   $("#suggest").textContent = st ? `候補: ${st.next_number}番` : "";
+  $("#nexthint").textContent = st ? `次の番号札: ${st.next_number}番` : "";
   updateSendButton();
 
   const q = st && st.queue;
@@ -252,6 +253,36 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-cmd]");
   if (b) control(b.dataset.cmd, +b.dataset.n);
 });
+// ---------------------------------------------------------------- 番号札のリセット
+async function setNumbering(n) {
+  try {
+    const r = await api("/api/numbering", { method: "POST", body: { next_number: n } });
+    S.numTouched = false;   // 注文画面の番号欄に新しい候補を入れる
+    toast(`次の番号を ${r.next_number}番 にしました`, "ok");
+  } catch (err) { toast(err.message, "err"); }
+  pollStatus();
+}
+$("#reset1").addEventListener("click", () => {
+  if (confirm("番号を1番から振り直しますか？\n（受付中の番号は自動で飛ばします）")) setNumbering(1);
+});
+$("#setnext").addEventListener("click", () => {
+  const v = $("#nextnum").value.trim();
+  if (!/^\d+$/.test(v)) return toast("番号を数字で入力してください", "err");
+  setNumbering(+v);
+  $("#nextnum").value = "";
+});
+$("#clearall").addEventListener("click", async () => {
+  const q = S.status && S.status.queue;
+  const n = q ? q.pending.length + q.ready.length + (q.active ? 1 : 0) : 0;
+  if (!confirm(`全注文（${n}件）と完了履歴を消して、番号を1番に戻しますか？\nこの操作は元に戻せません。`)) return;
+  try {
+    await api("/api/queue/clear_all", { method: "POST", body: { order_number: 0 } });
+    await setNumbering(1);
+    toast("全注文をクリアしました", "ok");
+  } catch (err) { toast(err.message, "err"); }
+  pollStatus();
+});
+
 $("#inject").addEventListener("click", () => {
   const v = $("#injnum").value.trim();
   if (/^\d+$/.test(v)) control("inject_marker", +v);
