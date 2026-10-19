@@ -1,0 +1,26 @@
+# colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# デモ実行時のデータ（python3 -m shop_robot.demo）
+demo_data/
+
+# 生成物（番号札PDF）
+marker_cards*.pdf
+cards*.pdf
+
+# エディタ・OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

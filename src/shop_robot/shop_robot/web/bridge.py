@@ -1,7 +1,7 @@
 """Web アプリとロボット側をつなぐ層。
 
 ・RosBridge（nodes/web_server_node.py）… 実運用。ROS Topic/Service でキューノードとやり取り
-・LocalBridge（このファイル）… ROS なしのデモ。キューと「準備動作」を同じプロセス内で模擬
+・LocalBridge（このファイル）… ROS なしのデモ。キューと「ロボット動作」を同じプロセス内で模擬
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ..core.order_queue import (
     OrderQueue, QueueError, RESULT_CANCELED, RESULT_SUCCESS,
 )
 
-COMMANDS = ("cancel", "postpone", "force_start", "inject_marker")
+COMMANDS = ("cancel", "ready", "unready", "force_start", "inject_marker")
 
 
 class Bridge(Protocol):
@@ -52,15 +52,17 @@ class LocalBridge:
             if command == "cancel":
                 if q.cancel(order_number) == "active":
                     self._cancel.set()
-                    return True, f"{order_number}番の準備を中止しています"
-            elif command == "postpone":
-                q.postpone(order_number)
+                    return True, f"{order_number}番のロボット動作を中止しています"
+            elif command == "ready":
+                q.mark_ready(order_number)
+            elif command == "unready":
+                q.unmark_ready(order_number)
             elif command == "force_start":
                 self._start(order_number)
             elif command == "inject_marker":
                 ok, msg = q.check_marker(order_number)
                 if not ok:
-                    q.note(msg)
+                    q.note(msg, public=True)
                     return False, msg
                 self._start(order_number)
             else:
@@ -70,12 +72,12 @@ class LocalBridge:
         return True, q.last_event
 
     def _start(self, order_number: int) -> None:
-        order = self.queue.start_head(order_number)
+        order = self.queue.start(order_number)
         self._cancel.clear()
-        threading.Thread(target=self._prepare, args=(order,), daemon=True).start()
+        threading.Thread(target=self._run_robot, args=(order,), daemon=True).start()
 
-    def _prepare(self, order: Order) -> None:
-        """ロボットの準備動作の代わり（1個あたり seconds_per_item 秒）"""
+    def _run_robot(self, order: Order) -> None:
+        """ロボット動作の代わり（1個あたり seconds_per_item 秒）"""
         units = [(it, k) for it in order.items for k in range(1, it.quantity + 1)]
         for i, (it, k) in enumerate(units):
             self.queue.set_progress(i / len(units), f"{it.product_name} {k}/{it.quantity} 個目")

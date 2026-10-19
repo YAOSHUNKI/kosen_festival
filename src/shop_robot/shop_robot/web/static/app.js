@@ -158,14 +158,13 @@ $("#send").addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------- 状態表示
-const STATE_LABEL = ["待ち注文なし", "マーカー提示待ち", "準備中"];
-
 function ago(stamp) {
   const s = Math.max(0, Date.now() / 1000 - stamp);
   if (s < 60) return "たった今";
   return `${Math.floor(s / 60)}分前`;
 }
-const summary = (o) => o.items.map((i) => `${esc(i.product_name || "ID" + i.product_id)} ×${i.quantity}`).join("　");
+const pname = (i) => esc(i.product_name || "ID" + i.product_id);
+const summary = (o) => o.items.map((i) => `${pname(i)} ×${i.quantity}`).join("　");
 
 function renderStatus() {
   const st = S.status;
@@ -179,7 +178,7 @@ function renderStatus() {
   updateSendButton();
 
   const q = st && st.queue;
-  $("#qcount").textContent = q ? q.waiting.length + (q.active ? 1 : 0) : "–";
+  $("#qcount").textContent = q ? q.pending.length + q.ready.length + (q.active ? 1 : 0) : "–";
 
   const key = JSON.stringify(q) + Math.floor(Date.now() / 30000); // 30秒ごとに経過時間も更新
   if (key === S.statusKey) return;
@@ -187,38 +186,47 @@ function renderStatus() {
 
   const now = $("#now");
   if (!q) {
-    now.innerHTML = `<h2>現在の状態</h2><p>ロボット側（キューノード）からの状態が届いていません。<br>ノードが起動しているか、同じネットワーク・ROS_DOMAIN_ID か確認してください。</p>`;
-    $("#qlist").innerHTML = ""; $("#done").innerHTML = "";
+    now.innerHTML = `<h2>ロボット</h2><p>ロボット側（キューノード）からの状態が届いていません。<br>ノードが起動しているか、同じネットワーク・ROS_DOMAIN_ID か確認してください。</p>`;
+    ["#plist", "#rlist", "#done", "#pcount", "#rcount"].forEach((s) => ($(s).innerHTML = ""));
     return;
   }
-  const head = q.waiting[0];
-  let body = "";
-  if (q.active) {
-    body = `<div class="bignum">${q.active.order_number}<small>番</small></div>
+
+  // 準備中（スタッフの作業リスト）
+  $("#pcount").textContent = q.pending.length || "";
+  $("#plist").innerHTML = q.pending.length
+    ? q.pending.map((o) => `<div class="qrow">
+        <div class="qnum">${o.order_number}</div>
+        <div><div class="qitems">${o.items.map((i) => `<span class="it">${pname(i)}<b>×${i.quantity}</b></span>`).join("")}</div>
+          <div class="qmeta">${ago(o.stamp)}に受付</div></div>
+        <div class="qbtns">
+          <button class="btn danger small" data-cmd="cancel" data-n="${o.order_number}">取消</button>
+          <button class="btn done" data-cmd="ready" data-n="${o.order_number}">完成</button>
+        </div></div>`).join("")
+    : `<div class="empty">準備中の注文はありません</div>`;
+
+  // 呼び出し中
+  $("#rcount").textContent = q.ready.length || "";
+  $("#rlist").innerHTML = q.ready.length
+    ? q.ready.map((o) => `<div class="qrow">
+        <div class="qnum">${o.order_number}</div>
+        <div><div class="qitems">${summary(o)}</div><div class="qmeta">お客様のマーカー提示待ち</div></div>
+        <div class="qbtns">
+          ${q.active ? "" : `<button class="btn small indigo" data-cmd="force_start" data-n="${o.order_number}">マーカーなしで開始</button>`}
+          <button class="btn small ghost" data-cmd="unready" data-n="${o.order_number}">準備中に戻す</button>
+          <button class="btn small danger" data-cmd="cancel" data-n="${o.order_number}">取消</button>
+        </div></div>`).join("")
+    : `<div class="hint" style="justify-content:flex-start">呼び出し中の番号はありません</div>`;
+
+  // ロボット
+  const body = q.active
+    ? `<span class="state busy">動作中</span>
+      <div class="bignum">${q.active.order_number}<small>番</small></div>
       <div class="items">${summary(q.active)}</div>
       <div class="progress"><div style="width:${Math.round(q.progress * 100)}%"></div></div>
       <div class="ptext">${esc(q.progress_text)}</div>
-      <div style="margin-top:12px"><button class="btn small danger" data-cmd="cancel" data-n="${q.active.order_number}">準備を中止</button></div>`;
-  } else if (head) {
-    body = `<div class="bignum">${head.order_number}<small>番</small></div>
-      <div class="items">お客様のマーカー提示を待っています</div>`;
-  } else {
-    body = `<p class="items" style="margin-top:14px">注文が入るとここに表示されます</p>`;
-  }
-  now.innerHTML = `<h2>現在の状態</h2><span class="state s${q.state}">${STATE_LABEL[q.state]}</span>${body}
-    ${q.last_event ? `<div class="event">${esc(q.last_event)}</div>` : ""}`;
-
-  $("#qlist").innerHTML = q.waiting.length
-    ? q.waiting.map((o, i) => `<div class="qrow ${i === 0 ? "head" : ""}">
-        <div class="qnum">${o.order_number}</div>
-        <div><div class="qitems">${summary(o)}${i === 0 && !q.active ? '<span class="tag">呼出中</span>' : ""}</div>
-          <div class="qmeta">${ago(o.stamp)}に受付</div></div>
-        <div class="qbtns">
-          ${i === 0 && !q.active ? `<button class="btn small indigo" data-cmd="force_start" data-n="${o.order_number}">マーカーなしで開始</button>` : ""}
-          ${q.waiting.length > 1 ? `<button class="btn small ghost" data-cmd="postpone" data-n="${o.order_number}">後回し</button>` : ""}
-          <button class="btn small danger" data-cmd="cancel" data-n="${o.order_number}">取消</button>
-        </div></div>`).join("")
-    : `<div class="empty">待ち注文はありません</div>`;
+      <div style="margin-top:12px"><button class="btn small danger" data-cmd="cancel" data-n="${q.active.order_number}">ロボット動作を中止</button></div>`
+    : `<span class="state">待機中</span>`;
+  now.innerHTML = `<h2>ロボット</h2>${body}${q.last_event ? `<div class="event">${esc(q.last_event)}</div>` : ""}`;
 
   $("#done").innerHTML = q.recently_completed.length
     ? q.recently_completed.map((n) => `<span class="chip">${n}</span>`).join("")
@@ -226,8 +234,9 @@ function renderStatus() {
 }
 
 const CONFIRM = {
-  cancel: (n) => `${n}番の注文を取り消しますか？`,
-  force_start: (n) => `${n}番をマーカーなしで準備開始しますか？`,
+  cancel: (n) => (S.status?.queue?.active?.order_number === n
+    ? `${n}番のロボット動作を中止して注文を取り消しますか？` : `${n}番の注文を取り消しますか？`),
+  force_start: (n) => `${n}番をマーカーなしでロボット動作開始しますか？`,
 };
 async function control(cmd, n) {
   if (CONFIRM[cmd] && !confirm(CONFIRM[cmd](n))) return;

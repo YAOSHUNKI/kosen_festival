@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from shop_robot.core.aruco import MarkerDebouncer, MarkerDetector, generate_marker
-from shop_robot.core.models import Order, OrderItem, STATE_IDLE, STATE_PREPARING, STATE_WAITING_MARKER
+from shop_robot.core.models import Order, OrderItem, STATE_CALLING, STATE_IDLE, STATE_PENDING, STATE_ROBOT_BUSY
 from shop_robot.core.order_queue import (
     OrderQueue, QueueError, RESULT_CANCELED, RESULT_FAILED, RESULT_SUCCESS,
 )
@@ -37,41 +37,60 @@ def test_queue_flow():
     q.add(order(3))
     with pytest.raises(QueueError):
         q.add(order(5))
-    assert q.state == STATE_WAITING_MARKER
+    assert q.state == STATE_PENDING
 
-    ok, msg = q.check_marker(3)
-    assert not ok and "まだ順番ではありません" in msg
+    # 完成前のマーカーは受け付けない
+    ok, msg = q.check_marker(5)
+    assert not ok and "まだ準備中" in msg
     ok, _ = q.check_marker(99)
     assert not ok
-    ok, _ = q.check_marker(5)
-    assert ok
-    assert q.start_head(5).order_number == 5
-    assert q.state == STATE_PREPARING
-    ok, msg = q.check_marker(3)  # 準備中は次を受け付けない
-    assert not ok and "準備中" in msg
+
+    # 完成は順不同。完成した番号だけ呼び出し中になる
+    q.mark_ready(3)
+    assert q.state == STATE_CALLING
+    assert [o.order_number for o in q.ready] == [3] and [o.order_number for o in q.pending] == [5]
+    assert q.public_message.startswith("3番") and q.public_seq == 1
     with pytest.raises(QueueError):
-        q.add(order(5))  # 準備中の番号も重複扱い
+        q.mark_ready(3)  # 既に呼び出し中
+
+    ok, _ = q.check_marker(3)
+    assert ok
+    assert q.start(3).order_number == 3
+    assert q.state == STATE_ROBOT_BUSY
+    q.mark_ready(5)
+    ok, msg = q.check_marker(5)  # ロボット動作中は次を受け付けない
+    assert not ok and "前のお客様" in msg
+    with pytest.raises(QueueError):
+        q.add(order(3))  # 動作中の番号も重複扱い
 
     q.finish_active(RESULT_SUCCESS)
-    assert q.completed == [5]
-    assert q.head.order_number == 3
+    assert q.completed == [3]
+    assert q.state == STATE_CALLING and q.check_marker(5)[0]
 
 
-def test_queue_failure_returns_to_head_and_cancel():
+def test_queue_unready_failure_cancel():
     q = OrderQueue()
     for n in (1, 2, 3):
         q.add(order(n))
-    q.start_head()
-    q.finish_active(RESULT_FAILED, "把持失敗")
-    assert [o.order_number for o in q.waiting] == [1, 2, 3]
+    q.mark_ready(2)
+    q.unmark_ready(2)  # 押し間違い → 受付順に戻る
+    assert [o.order_number for o in q.pending] == [1, 2, 3] and q.ready == []
 
-    q.postpone(1)
-    assert [o.order_number for o in q.waiting] == [2, 3, 1]
+    q.mark_ready(1)
+    q.mark_ready(2)
+    q.start(2)
+    q.finish_active(RESULT_FAILED, "把持失敗")
+    assert [o.order_number for o in q.ready] == [2, 1]  # 失敗は呼び出し中の先頭に戻る
+    assert "把持失敗" in q.last_event
+
     assert q.cancel(3) == "waiting"
-    q.start_head()
-    assert q.cancel(2) == "active"  # 準備中は呼び出し側でロボットを止める
+    assert q.cancel(1) == "waiting"
+    q.start(2)
+    assert q.cancel(2) == "active"  # 動作中は呼び出し側でロボットを止める
     q.finish_active(RESULT_CANCELED)
-    assert [o.order_number for o in q.waiting] == [1] and q.completed == []
+    assert q.state == STATE_IDLE and q.completed == []
+    with pytest.raises(QueueError):
+        q.start(2)
 
 
 def test_queue_validation():
@@ -85,12 +104,21 @@ def test_queue_validation():
 def test_queue_persistence(tmp_path):
     path = tmp_path / "queue.json"
     q = OrderQueue(path)
-    q.add(order(7))
-    q.add(order(8))
-    q.start_head()  # 7 を準備中のまま「クラッシュ」
+    for n in (7, 8, 9):
+        q.add(order(n))
+    q.mark_ready(7)
+    q.mark_ready(8)
+    q.start(8)  # 8 を動作中のまま「クラッシュ」
     q2 = OrderQueue(path)
-    assert [o.order_number for o in q2.waiting] == [7, 8]
+    assert [o.order_number for o in q2.ready] == [8, 7]
+    assert [o.order_number for o in q2.pending] == [9]
     assert q2.active is None
+
+
+def test_queue_loads_old_format(tmp_path):
+    path = tmp_path / "queue.json"
+    path.write_text('{"waiting": [{"order_number": 4, "items": [{"product_id": 1, "quantity": 1}]}], "active": null}')
+    assert [o.order_number for o in OrderQueue(path).pending] == [4]
 
 
 # --- ArUco ------------------------------------------------------------------

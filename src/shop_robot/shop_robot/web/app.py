@@ -53,7 +53,7 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     def in_queue(status: dict | None) -> set[int]:
         if not status:
             return set()
-        nums = {o["order_number"] for o in status["waiting"]}
+        nums = {o["order_number"] for o in status["pending"] + status["ready"]}
         if status.get("active"):
             nums.add(status["active"]["order_number"])
         return nums

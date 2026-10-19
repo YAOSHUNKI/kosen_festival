@@ -25,7 +25,8 @@ from .ros_convert import order_to_msg, status_msg_to_snapshot
 
 COMMAND_IDS = {
     "cancel": QueueControl.Request.CANCEL,
-    "postpone": QueueControl.Request.POSTPONE,
+    "ready": QueueControl.Request.MARK_READY,
+    "unready": QueueControl.Request.UNMARK_READY,
     "force_start": QueueControl.Request.FORCE_START,
     "inject_marker": QueueControl.Request.INJECT_MARKER,
 }
@@ -74,7 +75,7 @@ class RosBridge(Node):
             s = self._status
             if not s:
                 return False
-            return (any(o["order_number"] == n for o in s["waiting"])
+            return (any(o["order_number"] == n for o in s["pending"] + s["ready"])
                     or (s["active"] and s["active"]["order_number"] == n))
 
         with self._cond:

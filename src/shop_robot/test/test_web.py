@@ -44,7 +44,7 @@ def test_order_flow(tmp_path):
     assert r.status_code == 200 and r.json()["delivered"]
     st = c.get("/api/status").json()
     assert st["next_number"] == 13
-    w = st["queue"]["waiting"][0]
+    w = st["queue"]["pending"][0]
     assert w["order_number"] == 12
     assert {(i["product_id"], i["product_name"], i["quantity"]) for i in w["items"]} == {(1, "たこ焼き", 3), (2, "ラムネ", 1)}
 
@@ -54,27 +54,40 @@ def test_order_flow(tmp_path):
     assert c.post("/api/orders", json={"order_number": 13, "items": [{"product_id": 9, "quantity": 1}]}).status_code == 400
 
     c.post("/api/orders", json={"order_number": 13, "items": [{"product_id": 2, "quantity": 1}]})
-    # 順番違いのマーカーは拒否
-    r = c.post("/api/queue/inject_marker", json={"order_number": 13})
-    assert r.status_code == 400 and "まだ順番" in r.json()["detail"]
-    # 先頭のマーカーで準備開始 → 完了
-    assert c.post("/api/queue/inject_marker", json={"order_number": 12}).status_code == 200
-    q = wait_state(c, 1)  # 12 完了後、13 のマーカー待ち
-    assert q["recently_completed"] == [12] and q["waiting"][0]["order_number"] == 13
+    # 完成前のマーカーは拒否され、お客様向けメッセージが出る
+    r = c.post("/api/queue/inject_marker", json={"order_number": 12})
+    assert r.status_code == 400 and "まだ準備中" in r.json()["detail"]
+    q = c.get("/api/status").json()["queue"]
+    assert "まだ準備中" in q["public_message"]
+
+    # 13 を先に完成 → 呼び出し中 → マーカーでロボット動作 → 完了
+    assert c.post("/api/queue/ready", json={"order_number": 13}).status_code == 200
+    q = c.get("/api/status").json()["queue"]
+    assert q["state"] == 2 and [o["order_number"] for o in q["ready"]] == [13]
+    assert c.post("/api/queue/inject_marker", json={"order_number": 13}).status_code == 200
+    q = wait_state(c, 1)  # 13 完了後、12 は準備中のまま
+    assert q["recently_completed"] == [13] and q["pending"][0]["order_number"] == 12 and q["ready"] == []
+    # 呼び出し中の番号も next_number で飛ばす
+    c.post("/api/queue/ready", json={"order_number": 12})
+    c.post("/api/orders", json={"order_number": 14, "items": [{"product_id": 2, "quantity": 1}]})
+    assert c.get("/api/status").json()["next_number"] == 15
 
 
-def test_cancel_active_and_postpone(tmp_path):
+def test_cancel_active_and_unready(tmp_path):
     c, _ = make(tmp_path, sec=0.5)
     for n in (1, 2, 3):
         c.post("/api/orders", json={"order_number": n, "items": [{"product_id": 1, "quantity": 3}]})
-    c.post("/api/queue/postpone", json={"order_number": 1})
-    q = c.get("/api/status").json()["queue"]
-    assert [o["order_number"] for o in q["waiting"]] == [2, 3, 1]
+    c.post("/api/queue/ready", json={"order_number": 1})
+    c.post("/api/queue/unready", json={"order_number": 1})
+    assert c.post("/api/queue/unready", json={"order_number": 1}).status_code == 400
+    c.post("/api/queue/ready", json={"order_number": 2})
     c.post("/api/queue/force_start", json={"order_number": 2})
-    assert c.get("/api/status").json()["queue"]["state"] == 2
+    assert c.get("/api/status").json()["queue"]["state"] == 3
+    assert c.post("/api/queue/force_start", json={"order_number": 1}).status_code == 400  # 呼び出し中でない
     c.post("/api/queue/cancel", json={"order_number": 2})
     q = wait_state(c, 1)
-    assert [o["order_number"] for o in q["waiting"]] == [3, 1] and q["recently_completed"] == []
+    assert [o["order_number"] for o in q["pending"]] == [1, 3] and q["recently_completed"] == []
+    assert c.post("/api/queue/postpone", json={"order_number": 1}).status_code == 404
 
 
 def test_products_api(tmp_path):

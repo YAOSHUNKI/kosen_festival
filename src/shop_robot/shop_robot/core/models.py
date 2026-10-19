@@ -38,7 +38,7 @@ class Order:
 
 
 # QueueStatus.msg の state と同じ値
-STATE_IDLE = 0
-STATE_WAITING_MARKER = 1
-STATE_PREPARING = 2
-STATE_NAMES = {STATE_IDLE: "idle", STATE_WAITING_MARKER: "waiting_marker", STATE_PREPARING: "preparing"}
+STATE_IDLE = 0          # 注文なし
+STATE_PENDING = 1       # 準備中の注文のみ
+STATE_CALLING = 2       # 呼び出し中（マーカー待ち）
+STATE_ROBOT_BUSY = 3    # ロボット動作中

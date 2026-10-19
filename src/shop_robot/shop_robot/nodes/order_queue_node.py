@@ -1,10 +1,10 @@
 """注文キューノード（ロボット側）
 
-  sub  /shop/orders         shop_interfaces/Order      Web から届く注文を最後尾に積む
-  sub  /shop/marker_id      std_msgs/Int32             ArUco 検出結果。先頭の番号なら準備開始
+  sub  /shop/orders         shop_interfaces/Order       Web から届く注文を「準備中」に積む
+  sub  /shop/marker_id      std_msgs/Int32              ArUco 検出結果。呼び出し中の番号ならロボット動作開始
   pub  /shop/queue_status   shop_interfaces/QueueStatus 状態（変化時 + 1Hz）
-  srv  /shop/queue_control  shop_interfaces/QueueControl 取消・後回し・強制開始
-  act  /shop/prepare_order  shop_interfaces/PrepareOrder ロボット動作ノードへの準備依頼（クライアント）
+  srv  /shop/queue_control  shop_interfaces/QueueControl 完成（呼び出し）・呼び出し取消・注文取消・強制開始
+  act  /shop/prepare_order  shop_interfaces/PrepareOrder ロボット動作ノードへの依頼（クライアント）
 """
 import rclpy
 from action_msgs.msg import GoalStatus
@@ -42,7 +42,7 @@ class OrderQueueNode(Node):
         self.prepare = ActionClient(self, PrepareOrder, ACTION_PREPARE)
         self.create_timer(1.0 / rate, self.publish_status)
 
-        self.get_logger().info(f"注文キュー起動（待ち {len(self.q.waiting)}件, 状態ファイル {state_file}）")
+        self.get_logger().info(f"注文キュー起動（準備中 {len(self.q.pending)}件・呼び出し中 {len(self.q.ready)}件, 状態ファイル {state_file}）")
         self.publish_status()
 
     def publish_status(self):
@@ -63,10 +63,10 @@ class OrderQueueNode(Node):
         n = msg.data
         ok, reason = self.q.check_marker(n)
         if ok:
-            self.get_logger().info(f"マーカー {n} を検出 → 準備開始")
+            self.get_logger().info(f"マーカー {n} を検出 → ロボット動作開始")
             self.start(n)
         else:
-            self.q.note(reason)
+            self.q.note(reason, public=True)
             self.get_logger().info(f"マーカー {n}: {reason}")
         self.publish_status()
 
@@ -76,9 +76,11 @@ class OrderQueueNode(Node):
             if req.command == QueueControl.Request.CANCEL:
                 if self.q.cancel(n) == "active":
                     self.cancel_active()
-                    res.message = f"{n}番の準備を中止しています"
-            elif req.command == QueueControl.Request.POSTPONE:
-                self.q.postpone(n)
+                    res.message = f"{n}番のロボット動作を中止しています"
+            elif req.command == QueueControl.Request.MARK_READY:
+                self.q.mark_ready(n)
+            elif req.command == QueueControl.Request.UNMARK_READY:
+                self.q.unmark_ready(n)
             elif req.command == QueueControl.Request.FORCE_START:
                 ok, reason = self.start(n)
                 if not ok:
@@ -96,16 +98,18 @@ class OrderQueueNode(Node):
         self.publish_status()
         return res
 
-    # --- ロボットへの準備依頼 -----------------------------------------------------
-    # 1回の準備ごとに seq を振り、古いゴールの遅れて届いた結果・進捗で新しい注文を壊さないようにする
+    # --- ロボットへの動作依頼 -----------------------------------------------------
+    # 1回の動作ごとに seq を振り、古いゴールの遅れて届いた結果・進捗で新しい注文を壊さないようにする
     def start(self, n: int) -> tuple[bool, str]:
         if not self.prepare.server_is_ready():
             reason = "ロボット動作ノード（prepare_order）が起動していません"
             self.q.note(reason)
+            self.q.note("ただいまロボットを準備しています。スタッフにお声がけください", public=True)
+            self.q.last_event = reason
             self.get_logger().error(reason)
             return False, reason
         try:
-            order = self.q.start_head(n)
+            order = self.q.start(n)
         except QueueError as e:
             return False, str(e)
         self._seq += 1

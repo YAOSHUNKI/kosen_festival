@@ -102,11 +102,13 @@ h2 { font-size: 15px; color: var(--muted); font-weight: 700; margin: 0 0 10px; l
 .btn.danger { background: transparent; border: 1px solid #e4b3a7; color: var(--accent); }
 
 /* ---- 待ち行列 ---- */
-.queue-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; align-items: start; }
+.queue-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+.side-col { display: flex; flex-direction: column; gap: 16px; }
+h2 .count { color: var(--ink); margin-left: 4px; }
+h2 .h2note { font-weight: 500; font-size: 12px; margin-left: 12px; letter-spacing: 0; }
 .now .state { display: inline-block; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px; background: var(--line); }
-.now .state.s1 { background: #fde6d4; color: #9c3d12; }
-.now .state.s2 { background: #dbe8f6; color: var(--indigo); }
-.now .bignum { font-size: 72px; font-weight: 900; line-height: 1; margin: 12px 0 4px; }
+.now .state.busy { background: #dbe8f6; color: var(--indigo); }
+.now .bignum { font-size: 56px; font-weight: 900; line-height: 1; margin: 12px 0 4px; }
 .now .bignum small { font-size: 22px; margin-left: 4px; }
 .now .items { color: var(--muted); }
 .progress { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin-top: 14px; }
@@ -117,8 +119,15 @@ h2 { font-size: 15px; color: var(--muted); font-weight: 700; margin: 0 0 10px; l
 .qrow { display: grid; grid-template-columns: 88px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .qrow:last-child { border-bottom: 0; }
 .qnum { font-size: 34px; font-weight: 900; text-align: center; }
-.qrow.head .qnum { color: var(--accent); }
 .qitems { font-weight: 700; }
+#plist .qitems { font-size: 18px; line-height: 1.6; }
+#plist .qitems .it { display: inline-block; margin-right: 14px; }
+#plist .qitems .it b { color: var(--accent); margin-left: 2px; }
+.btn.done { background: var(--ok); color: #fff; padding: 14px 22px; font-size: 17px; border-radius: 11px; }
+.calling { border: 2px solid var(--accent); }
+.calling .qrow { grid-template-columns: 64px 1fr; }
+.calling .qnum { color: var(--accent); font-size: 30px; }
+.calling .qbtns { grid-column: 1 / -1; justify-content: flex-start; }
 .qmeta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .qbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .tag { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: var(--accent); color: #fff; margin-left: 6px; vertical-align: middle; }
@@ -161,4 +170,5 @@ summary { cursor: pointer; color: var(--muted); font-size: 14px; }
   .products { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .qrow { grid-template-columns: 64px 1fr; }
   .qbtns { grid-column: 1 / -1; justify-content: flex-start; }
+  #plist .btn.done { flex: 1; }
 }

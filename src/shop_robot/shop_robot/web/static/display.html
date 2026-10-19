@@ -15,94 +15,138 @@
   body {
     background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden;
     font-variant-numeric: tabular-nums;
-    display: grid; grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr auto; gap: 2vw; padding: 2vw;
+    display: grid; grid-template-columns: 1.7fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 2vw; padding: 2vw;
   }
   .main {
-    background: var(--panel); border-radius: 2vw; padding: 3vw; display: flex; flex-direction: column;
-    justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;
+    background: var(--panel); border-radius: 2vw; padding: 2.5vw 3vw; display: flex; flex-direction: column;
+    align-items: center; text-align: center; position: relative; overflow: hidden; min-height: 0;
   }
+  .main.calling { border: .5vw solid var(--accent); }
   .label { font-size: 2.6vw; font-weight: 800; letter-spacing: .15em; color: var(--muted); }
-  .num { font-size: 22vw; font-weight: 900; line-height: 1; margin: 1vw 0; color: var(--accent); }
-  .num small { font-size: 5vw; margin-left: .5vw; color: var(--ink); }
-  .main.preparing .num { color: var(--indigo); font-size: 16vw; }
-  .msg { font-size: 2.4vw; font-weight: 700; line-height: 1.5; }
-  .marker-hint { display: flex; align-items: center; gap: 1.5vw; margin-top: 2vw; font-size: 2vw; color: var(--muted); }
-  .marker-hint .mk { width: 5vw; height: 5vw; background: #fff; padding: .5vw; border-radius: .5vw; }
-  .bar { width: 70%; height: 1.2vw; border-radius: .6vw; background: rgba(255,255,255,.12); margin-top: 2vw; overflow: hidden; }
-  .bar > div { height: 100%; background: var(--indigo); transition: width .5s; }
-  .main.calling::after {
-    content: ""; position: absolute; inset: 0; border: .6vw solid var(--accent); border-radius: 2vw;
-    animation: pulse 1.6s ease-in-out infinite;
+  .main.calling .label { color: var(--accent); }
+  .called {
+    flex: 1; min-height: 0; width: 100%; display: flex; flex-wrap: wrap; align-content: center; justify-content: center;
+    gap: 1vw 4vw;
   }
-  @keyframes pulse { 50% { opacity: .15; } }
+  .called span { font-weight: 900; line-height: 1.05; color: var(--ink); }
+  .called span.new { color: var(--accent); animation: flash 1s ease-in-out 6; }
+  @keyframes flash { 50% { opacity: .25; } }
+  .msg { font-size: 2.4vw; font-weight: 700; line-height: 1.5; }
+  .idle { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2vw; }
+  .marker-hint { display: flex; align-items: center; gap: 1.5vw; font-size: 2.3vw; font-weight: 700; text-align: left; line-height: 1.4; }
+  .marker-hint .mk { width: 5vw; height: 5vw; background: #fff; padding: .5vw; border-radius: .5vw; flex: none; }
 
   .side { display: flex; flex-direction: column; gap: 2vw; min-height: 0; }
   .box { background: var(--panel); border-radius: 2vw; padding: 2vw; min-height: 0; }
   .box h2 { margin: 0 0 1.2vw; font-size: 2vw; letter-spacing: .12em; color: var(--muted); }
-  .box.wait { flex: 1; overflow: hidden; }
+  .box.pending { flex: 1; overflow: hidden; }
+  .robot .num { font-size: 6vw; font-weight: 900; color: var(--indigo); line-height: 1; }
+  .robot .num small { font-size: 2.2vw; color: var(--ink); margin-left: .4vw; }
+  .bar { height: 1vw; border-radius: .5vw; background: rgba(255,255,255,.12); margin-top: 1.2vw; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--indigo); transition: width .5s; }
   .nums { display: flex; flex-wrap: wrap; gap: 1vw; }
-  .nums span { font-size: 4.2vw; font-weight: 900; min-width: 8vw; text-align: center; padding: .3vw 1vw; border-radius: 1vw; background: rgba(255,255,255,.06); }
-  .done .nums span { color: var(--ok); background: rgba(92,201,138,.12); }
+  .nums span { font-size: 3.6vw; font-weight: 900; min-width: 7vw; text-align: center; padding: .3vw 1vw; border-radius: 1vw; background: rgba(255,255,255,.06); }
   .none { font-size: 2vw; color: var(--muted); }
-  .event { grid-column: 1 / -1; font-size: 2.2vw; font-weight: 700; text-align: center; min-height: 3.2vw; color: var(--ink); opacity: .9; }
+  .event { grid-column: 1 / -1; font-size: 2.4vw; font-weight: 800; text-align: center; min-height: 3.4vw; }
   .offline { position: fixed; top: 1vw; right: 1vw; background: var(--accent); color: #fff; padding: .6vw 1.2vw; border-radius: .8vw; font-size: 1.4vw; font-weight: 800; }
+  #sound { position: fixed; left: 1vw; bottom: 1vw; border: 0; background: rgba(255,255,255,.1); color: var(--muted); font: inherit; font-size: 1.2vw; padding: .5vw 1vw; border-radius: .6vw; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="main" id="main"></div>
   <div class="side">
-    <div class="box wait"><h2>お待ちの番号</h2><div class="nums" id="wait"></div></div>
-    <div class="box done"><h2>できあがり</h2><div class="nums" id="done"></div></div>
+    <div class="box robot"><h2>ロボット対応中</h2><div id="robot"></div></div>
+    <div class="box pending"><h2>準備中の番号</h2><div class="nums" id="pending"></div></div>
   </div>
   <div class="event" id="event"></div>
   <div class="offline" id="offline" hidden>ロボット未接続</div>
+  <button id="sound">クリックで呼び出し音を有効にする</button>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
 const mk = `<svg class="mk" viewBox="0 0 6 6" shape-rendering="crispEdges"><rect width="6" height="6"/><rect x="1" y="1" width="1" height="1" fill="#fff"/><rect x="3" y="1" width="2" height="1" fill="#fff"/><rect x="2" y="2" width="1" height="2" fill="#fff"/><rect x="4" y="3" width="1" height="1" fill="#fff"/><rect x="1" y="4" width="2" height="1" fill="#fff"/></svg>`;
-let last = "";
+
+// ---- 呼び出し音（ブラウザの制約で、一度画面をクリックしないと鳴らせない）
+let audio = null;
+document.addEventListener("click", () => {
+  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  audio.resume();
+  $("#sound").hidden = true;
+});
+function chime() {
+  if (!audio) return;
+  const t = audio.currentTime;
+  [[880, 0], [660, 0.35]].forEach(([f, d]) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(0.4, t + d + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.6);
+    o.connect(g).connect(audio.destination);
+    o.start(t + d); o.stop(t + d + 0.65);
+  });
+}
+
+// ---- 表示
+let last = "", known = null;
+const newUntil = new Map();   // 番号 -> 点滅をやめる時刻
+
+function numSize(count) {
+  if (count <= 1) return "20vw";
+  if (count <= 2) return "15vw";
+  if (count <= 4) return "11vw";
+  if (count <= 8) return "7.5vw";
+  return "5.5vw";
+}
 
 function render(st) {
   $("#offline").hidden = !!(st && st.connected);
   const q = st && st.queue;
-  const key = JSON.stringify(q);
+  const key = JSON.stringify(q && { ...q, progress_text: "" });
   if (key === last) return;
   last = key;
   const main = $("#main");
-  if (!q) { main.className = "main"; main.innerHTML = `<div class="msg">準備中です</div>`; return; }
+  if (!q) { main.className = "main"; main.innerHTML = `<div class="idle msg">準備中です</div>`; return; }
 
-  const head = q.waiting[0];
-  if (q.active) {
-    main.className = "main preparing";
-    main.innerHTML = `<div class="label">ただいま準備中</div>
-      <div class="num">${q.active.order_number}<small>番</small></div>
-      <div class="bar"><div style="width:${Math.round(q.progress * 100)}%"></div></div>
-      ${head ? `<div class="msg" style="margin-top:2vw">次は <b style="color:var(--accent)">${head.order_number}番</b> のお客様です</div>` : ""}`;
-  } else if (head) {
+  // 新しく呼び出された番号
+  const nums = q.ready.map((o) => o.order_number);
+  if (known) {
+    const fresh = nums.filter((n) => !known.has(n));
+    fresh.forEach((n) => newUntil.set(n, Date.now() + 6000));
+    if (fresh.length) chime();
+  }
+  known = new Set(nums);
+
+  if (nums.length) {
     main.className = "main calling";
     main.innerHTML = `<div class="label">お呼び出し中</div>
-      <div class="num">${head.order_number}<small>番</small></div>
-      <div class="msg">番号札のマーカーを<br>カメラにかざしてください</div>
-      <div class="marker-hint">${mk}<span>マーカー面をカメラに向けて 2〜3 秒</span></div>`;
+      <div class="called" style="font-size:${numSize(nums.length)}">
+        ${nums.map((n) => `<span class="${(newUntil.get(n) || 0) > Date.now() ? "new" : ""}">${n}</span>`).join("")}
+      </div>
+      <div class="marker-hint">${mk}<span>番号札のマーカーを<br>カメラにかざしてください</span></div>`;
+  } else if (q.pending.length || q.active) {
+    main.className = "main";
+    main.innerHTML = `<div class="label">お呼び出し</div>
+      <div class="idle"><div class="msg">ご注文の品を準備しています<br>番号が表示されるまでお待ちください</div></div>`;
   } else {
     main.className = "main";
-    main.innerHTML = `<div class="label">いらっしゃいませ</div><div class="msg" style="margin-top:2vw">ご注文は受付でどうぞ</div>`;
+    main.innerHTML = `<div class="label">いらっしゃいませ</div><div class="idle"><div class="msg">ご注文は受付でどうぞ</div></div>`;
   }
-  const rest = q.waiting.slice(q.active ? 0 : 1);
-  $("#wait").innerHTML = rest.length ? rest.map((o) => `<span>${o.order_number}</span>`).join("") : `<div class="none">—</div>`;
-  $("#done").innerHTML = q.recently_completed.length
-    ? q.recently_completed.slice(0, 6).map((n) => `<span>${n}</span>`).join("") : `<div class="none">—</div>`;
-  showEvent(q.last_event || "");
+
+  $("#robot").innerHTML = q.active
+    ? `<div class="num">${q.active.order_number}<small>番</small></div><div class="bar"><div style="width:${Math.round(q.progress * 100)}%"></div></div>`
+    : `<div class="none">—</div>`;
+  $("#pending").innerHTML = q.pending.length
+    ? q.pending.map((o) => `<span>${o.order_number}</span>`).join("") : `<div class="none">—</div>`;
+  showEvent(q.public_message, q.public_seq);
 }
 
-// お客様向けのイベントだけ数秒表示（取消などスタッフ向けの内容は出さない）
-const PUBLIC_EVENT = /まだ順番ではありません|ご用意ができました|準備中です|受付中にありません|準備を開始しました/;
-let lastEvent = "", eventTimer;
-function showEvent(text) {
-  if (text === lastEvent) return;
-  lastEvent = text;
-  clearTimeout(eventTimer);
-  if (!PUBLIC_EVENT.test(text)) { $("#event").textContent = ""; return; }
+let lastSeq = null, eventTimer;
+function showEvent(text, seq) {
+  if (seq === lastSeq) return;
+  const first = lastSeq === null;
+  lastSeq = seq;
+  if (first || !text) return;   // 開いた直後に古いメッセージを出さない
   $("#event").textContent = text;
   clearTimeout(eventTimer);
   eventTimer = setTimeout(() => ($("#event").textContent = ""), 8000);
@@ -113,6 +157,8 @@ async function poll() {
 }
 poll();
 setInterval(poll, 1000);
+// 点滅の終了を反映
+setInterval(() => { if ([...newUntil.values()].some((t) => t < Date.now())) { last = ""; for (const [n, t] of newUntil) if (t < Date.now()) newUntil.delete(n); } }, 1000);
 </script>
 </body>
 </html>

@@ -52,19 +52,27 @@
   <!-- 待ち行列 -->
   <section class="view" id="view-queue">
     <div class="queue-layout">
-      <div class="card now" id="now"></div>
       <div class="card">
-        <h2>待ち行列（上から順に呼び出し）</h2>
-        <div id="qlist"></div>
-        <h2 style="margin-top:20px">最近できあがった番号</h2>
-        <div class="chips" id="done"></div>
-        <details>
-          <summary>動作確認（カメラなしでマーカー読取を再現）</summary>
-          <div class="inline-form">
-            <input id="injnum" type="text" inputmode="numeric" placeholder="番号" style="width:110px">
-            <button class="btn small indigo" id="inject">マーカーを読んだことにする</button>
-          </div>
-        </details>
+        <h2>準備中 <span class="count" id="pcount"></span><span class="h2note">できたら「完成」で呼び出し表示に出ます</span></h2>
+        <div id="plist"></div>
+      </div>
+      <div class="side-col">
+        <div class="card calling">
+          <h2>呼び出し中 <span class="count" id="rcount"></span></h2>
+          <div id="rlist"></div>
+        </div>
+        <div class="card now" id="now"></div>
+        <div class="card">
+          <h2>最近お渡しした番号</h2>
+          <div class="chips" id="done"></div>
+          <details>
+            <summary>動作確認（カメラなしでマーカー読取を再現）</summary>
+            <div class="inline-form">
+              <input id="injnum" type="text" inputmode="numeric" placeholder="番号" style="width:110px">
+              <button class="btn small indigo" id="inject">マーカーを読んだことにする</button>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   </section>

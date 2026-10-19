@@ -39,9 +39,12 @@ def snapshot_to_msg(snap: dict, now: Time) -> QueueStatus:
         msg.active = order_to_msg(Order.from_dict(snap["active"]))
     msg.progress = float(snap["progress"])
     msg.progress_text = snap["progress_text"]
-    msg.waiting = [order_to_msg(Order.from_dict(d)) for d in snap["waiting"]]
+    msg.pending = [order_to_msg(Order.from_dict(d)) for d in snap["pending"]]
+    msg.ready = [order_to_msg(Order.from_dict(d)) for d in snap["ready"]]
     msg.recently_completed = list(snap["recently_completed"])
     msg.last_event = snap["last_event"]
+    msg.public_message = snap["public_message"]
+    msg.public_seq = snap["public_seq"]
     return msg
 
 
@@ -52,7 +55,10 @@ def status_msg_to_snapshot(m: QueueStatus) -> dict:
         "active": msg_to_order(m.active).to_dict() if m.has_active else None,
         "progress": m.progress,
         "progress_text": m.progress_text,
-        "waiting": [msg_to_order(o).to_dict() for o in m.waiting],
+        "pending": [msg_to_order(o).to_dict() for o in m.pending],
+        "ready": [msg_to_order(o).to_dict() for o in m.ready],
         "recently_completed": list(m.recently_completed),
         "last_event": m.last_event,
+        "public_message": m.public_message,
+        "public_seq": m.public_seq,
     }
