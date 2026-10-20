@@ -18,11 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ..core.aruco import dictionary_size, generate_marker
-from ..core.codec import COMMANDS
 from ..core.models import Order, OrderItem
 from ..core.order_queue import QueueError
 from ..core.products import ProductError, ProductStore
-from .bridge import Bridge
+from .bridge import COMMANDS, ShopBridge as Bridge
 
 STATIC_DIR = Path(__file__).parent / "static"
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>注文受付</title>
-<link rel="stylesheet" href="/static/style.css?v=5">
+<link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
 <header>
@@ -65,7 +65,7 @@
           <h2>カメラ <button class="linkbtn" id="camtoggle" style="float:right">非表示にする</button></h2>
           <div class="cam-view" id="camview">
             <img id="camimg" alt="カメラ映像">
-            <div class="cam-off" id="camoff">カメラ映像が届いていません<br><span>aruco_detector が起動しているか確認してください</span></div>
+            <div class="cam-off" id="camoff">カメラ映像が届いていません<br><span>カメラの接続と shop_server の camera_device 設定を確認してください</span></div>
           </div>
           <div class="cam-legend"><span class="lg ready">呼び出し中</span><span class="lg wait">準備中・動作中</span><span class="lg none">受付外</span></div>
         </div>
@@ -127,6 +127,6 @@
     </div>
   </div>
 </div>
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=6"></script>
 </body>
 </html>

@@ -1,11 +1,8 @@
 """受取ノード（ロボット側）: 受渡し台の商品をつかんでお客様に手渡す
 
-  キューとのやり取り（標準メッセージ型。PrepareNodeBase / core/codec.py を参照）
-  sub  /shop/prepare_order     std_msgs/Int32MultiArray   [注文番号, 商品ID, 個数, ...]  受取開始
-  sub  /shop/prepare_cancel    std_msgs/Int32             注文番号  中止（後始末をしてから取消を返す）
-  pub  /shop/prepare_result    std_msgs/Int32MultiArray   [注文番号, 結果]  1=成功 0=失敗 2=取消
-  pub  /shop/prepare_progress  std_msgs/Float32MultiArray [注文番号, 進捗0〜1]
-  pub  /shop/prepare_step      std_msgs/String            "<注文番号> <動作のラベル>"
+  システムとのやり取り（標準メッセージ型。PrepareNodeBase / core/codec.py を参照）
+  sub  /shop/prepare_order   std_msgs/Int32MultiArray  [商品ID, 個数, 商品ID, 個数, ...]  受取開始
+  pub  /shop/prepare_done    std_msgs/Bool             true=成功 / false=失敗（後始末を終えてから返す）
 
   pub  /shop/handover/state  std_msgs/String               実行中の動作（JSON。status: running / aborting / success / failed / canceled）
   pub/sub  handover.yaml の topics                          ロボットへの指令・完了/状態の受信
@@ -25,9 +22,8 @@ from rosidl_runtime_py.set_message import set_message_fields
 from rosidl_runtime_py.utilities import get_message
 from std_msgs.msg import String
 
-from ..core import codec
 from ..core.handover import (
-    STATUS_CANCELED, STATUS_SUCCESS, HandoverConfig, HandoverConfigError, HandoverRunner, Watcher, load_config,
+    STATUS_SUCCESS, HandoverConfig, HandoverConfigError, HandoverRunner, Watcher, load_config,
     make_step, order_context,
 )
 from ..core.models import Order, OrderItem
@@ -122,33 +118,26 @@ class HandoverNode(PrepareNodeBase):
     def can_accept(self) -> tuple[bool, str]:
         return self.runner.can_accept()   # 非常停止中・ロボット未準備なら受け付けない
 
-    def execute_order(self, order) -> int:
+    def execute_order(self, order) -> bool:
+        # トピックに注文番号は含まれないので、order.order_number はこのノードでの通し番号（ログ・状態表示用）
         n = order.order_number
-        self.get_logger().info(f"受取開始: {n}番 {order.summary()}")
+        self.get_logger().info(f"受取開始（依頼 #{n}）: {order.summary()}")
 
         def on_step(i, total, step):
-            self.publish_progress(n, i / total)
-            self.publish_step(n, step.label)
             self.publish_state(n, "running", step=step, index=i, total=total)
             self.get_logger().info(f"  [{i + 1}/{total}] {step.label}")
 
         def on_abort_step(step):
-            self.publish_step(n, f"後始末: {step.label}")
             self.publish_state(n, "aborting", step=step)
             self.get_logger().info(f"  [後始末] {step.label}")
 
-        res = self.runner.run(order, should_cancel=lambda: self.is_cancel_requested,
-                              on_step=on_step, on_abort_step=on_abort_step)
+        res = self.runner.run(order, on_step=on_step, on_abort_step=on_abort_step)
         self.publish_state(n, res.status, message=res.message)
         if res.status == STATUS_SUCCESS:
-            self.publish_step(n, "完了")
-            self.get_logger().info(f"受取完了: {n}番")
-            return codec.RESULT_SUCCESS
-        if res.status == STATUS_CANCELED:
-            return codec.RESULT_CANCELED
-        self.publish_step(n, f"失敗: {res.message}")
-        self.get_logger().warn(f"受取失敗: {n}番 {res.message}")
-        return codec.RESULT_FAILED
+            self.get_logger().info(f"受取完了（依頼 #{n}）")
+            return True
+        self.get_logger().warn(f"受取失敗（依頼 #{n}）: {res.message}")
+        return False
 
     def publish_state(self, order_number, status, step=None, index=0, total=0, message=""):
         d = {"order_number": order_number, "status": status, "message": message}

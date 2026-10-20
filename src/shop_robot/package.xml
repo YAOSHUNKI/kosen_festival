@@ -3,7 +3,7 @@
 <package format="3">
   <name>shop_robot</name>
   <version>0.1.0</version>
-  <description>注文受付 Web アプリ・注文キュー・ArUco 呼び出し・ロボット動作依頼（すべて標準メッセージ型）</description>
+  <description>注文受付 Web アプリ・待ち行列・AR マーカー呼び出し・ロボットへの依頼（標準メッセージ型）</description>
   <maintainer email="riml2005@icloud.com">shunki</maintainer>
   <license>MIT</license>
 

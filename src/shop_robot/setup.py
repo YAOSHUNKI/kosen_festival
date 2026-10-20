@@ -20,14 +20,12 @@ setup(
     zip_safe=False,
     maintainer="shunki",
     maintainer_email="riml2005@icloud.com",
-    description="注文受付 Web アプリ・注文キュー・ArUco 呼び出し・ロボット動作依頼（すべて標準メッセージ型）",
+    description="注文受付 Web アプリ・待ち行列・AR マーカー呼び出し・ロボットへの依頼（標準メッセージ型）",
     license="MIT",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "order_web_server = shop_robot.nodes.web_server_node:main",
-            "order_queue = shop_robot.nodes.order_queue_node:main",
-            "aruco_detector = shop_robot.nodes.aruco_detector_node:main",
+            "shop_server = shop_robot.nodes.shop_node:main",
             "prepare_stub = shop_robot.nodes.prepare_stub_node:main",
             "handover = shop_robot.nodes.handover_node:main",
             "mock_robot = shop_robot.nodes.mock_robot_node:main",

@@ -10,38 +10,27 @@
 ```
 
 ```
- 店頭タブレット/スマホ (ブラウザ)                       ロボット側
- ┌────────────────────────┐ /shop/orders            ┌─────────────────┐ /shop/prepare_order  ┌──────────────────┐
- │ order_web_server        │ ──────────────────────▶ │ order_queue      │ ───────────────────▶ │ handover（受取）   │
- │  注文・商品管理・待ち行列  │ /shop/queue_command     │  待ち行列+状態機械  │ /shop/prepare_cancel │ or prepare_stub   │
- │  /display 呼び出し表示    │ ──────────────────────▶ │                  │ ───────────────────▶ │ or 自作ノード      │
- │                         │ ◀────────────────────── │                  │ ◀─────────────────── │ （ROS1 でも可）    │
- └────────────────────────┘ /shop/queue_status       └─────────────────┘ /shop/prepare_result └──────────────────┘
-                              /shop/queue_command_result    ▲ /shop/marker_id   /shop/prepare_progress, _step
-                                                    ┌───────┴─────────┐
-                                                    │ aruco_detector   │ ← USBカメラ or 画像トピック
-                                                    └─────────────────┘
+ 店頭タブレット/スマホ (ブラウザ)
+        │ HTTP
+ ┌──────▼────────────────────────────────┐  /shop/prepare_order (Int32MultiArray)  ┌──────────────────┐
+ │ shop_server（1ノード）                  │ ──────────────────────────────────────▶ │ handover（受取）   │
+ │  注文・商品管理の Web 画面 / 呼び出し表示  │   [商品ID, 個数, 商品ID, 個数, ...]        │ or prepare_stub   │
+ │  待ち行列 / AR マーカー読み取り / カメラ映像 │                                          │ or 自作ノード      │
+ │                                        │ ◀────────────────────────────────────── │ （ROS1・C++ でも可）│
+ └──────▲────────────────────────────────┘  /shop/prepare_done (Bool)              └──────────────────┘
+        │ USB カメラ（または画像トピック）
 ```
 
-## ROS インタフェース（すべて標準メッセージ型。独自メッセージのパッケージは不要）
+## ROS インタフェース（ロボットとのやり取りはこの2本だけ・標準メッセージ型）
 
 | トピック | 型 | 向き | 内容 |
 |---|---|---|---|
-| `/shop/orders` | `std_msgs/Int32MultiArray` | Web → キュー | `data = [注文番号, 商品ID, 個数, 商品ID, 個数, ...]` |
-| `/shop/prepare_order` | `std_msgs/Int32MultiArray` | キュー → ロボット | 同じ形式。お客様がマーカーをかざしたときに1件ずつ送る |
-| `/shop/prepare_cancel` | `std_msgs/Int32` | キュー → ロボット | 中止する注文番号 |
-| `/shop/prepare_result` | `std_msgs/Int32MultiArray` | ロボット → キュー | `data = [注文番号, 結果]`　結果: `1`=成功 `0`=失敗 `2`=取消 |
-| `/shop/prepare_progress` | `std_msgs/Float32MultiArray` | ロボット → キュー | `data = [注文番号, 進捗 0.0〜1.0]`（任意。画面の進捗バー用） |
-| `/shop/prepare_step` | `std_msgs/String` | ロボット → キュー | `"<注文番号> <ステップ名>"`（任意。画面表示用。`"<注文番号> 失敗: <理由>"` は失敗理由として表示） |
-| `/shop/marker_id` | `std_msgs/Int32` | 検出 → キュー | 確定したマーカーID（= 注文番号） |
-| `/shop/camera/image/compressed` | `sensor_msgs/CompressedImage` | 検出 → Web | カメラ確認用プレビュー（JPEG・マーカー枠入り） |
-| `/shop/queue_command` | `std_msgs/String` | Web → キュー | スタッフ操作 `"<要求ID> <コマンド> <注文番号>"`（コマンド: `ready` `unready` `cancel` `force_start` `inject_marker` `clear_all`） |
-| `/shop/queue_command_result` | `std_msgs/String` | キュー → Web | `"<要求ID> ok <メッセージ>"` / `"<要求ID> ng <メッセージ>"` |
-| `/shop/queue_status` | `std_msgs/String` | キュー → Web | 画面表示用の状態（JSON）。TRANSIENT_LOCAL、変化時＋1Hz |
+| `/shop/prepare_order` | `std_msgs/Int32MultiArray` | システム → ロボット | `data = [商品ID, 個数, 商品ID, 個数, ...]`。**呼び出し中の番号札（AR マーカー）が読まれたときだけ**、その注文の分を1回 publish する |
+| `/shop/prepare_done` | `std_msgs/Bool` | ロボット → システム | 終わったら `true`（成功）/ `false`（失敗）。届くまで次の注文は送らない |
 
-注文・依頼・結果は RELIABLE / VOLATILE。形式の定義と変換関数は `shop_robot/core/codec.py` にまとめてある。
-商品名はトピックに載せず、Web サーバが商品マスタから補って表示する。
-ロボット側とやり取りするのは `/shop/prepare_*` の5つだけで、すべて std_msgs なので ros1_bridge などでもそのまま中継できる。
+- 注文番号はトピックに含まない（ロボットは商品IDと個数だけを見ればよい）。RELIABLE / VOLATILE
+- Web 画面・待ち行列・マーカー読み取りは `shop_server` の中で動くので、それらの間に ROS トピックはない
+- 形式の定義と変換関数は `shop_robot/core/codec.py`。std_msgs だけなので ros1_bridge などでもそのまま中継できる
 
 キューの動き：スタッフが「完成」を押した注文だけが呼び出し中になる（完成の順番は自由）。
 呼び出し中の番号のマーカーならどれでも受け付け、ロボット動作中は次のマーカーを受け付けない（「前のお客様の対応中です」と表示）。
@@ -70,7 +59,7 @@ ros2 launch shop_robot shop_system.launch.py
 
 ### カメラ映像
 
-aruco_detector がカメラ画像に検出結果を重ねた JPEG を配信し、スタッフ画面（待ち行列タブの「カメラ」）と
+shop_server がカメラ画像に検出結果を重ねて、スタッフ画面（待ち行列タブの「カメラ」）と
 呼び出し表示の右上に映す。マーカーの枠の色は **緑 = 呼び出し中（かざせば受け付ける） / 橙 = 準備中・動作中 /
 赤 = 受付中にない番号**。映像だけ見たいときは `http://<PCのIP>:8000/api/camera.mjpg`、静止画は `/api/camera.jpg`。
 映像は既定で鏡像（`preview_mirror`）。検出には影響しない。
@@ -80,11 +69,11 @@ aruco_detector がカメラ画像に検出結果を重ねた JPEG を配信し�
 | `use_stub` | true | false にすると準備動作スタブを起動しない（実機ノードを別途起動） |
 | `use_handover` | false | true で受取ノード（受渡し台 → 手渡し）を起動。スタブは起動しない |
 | `use_mock_robot` | false | true で受取ノード用の偽ロボットを起動（実機なしで受取の流れを確認） |
-| `use_camera` | true | false でカメラなし。画面の「動作確認」でマーカー読取を再現できる |
-| `use_web` | true | Web サーバを別PCで動かす場合は false |
 | `params_file` | config/params.yaml | カメラ番号・辞書・ポートなど |
 
-Web サーバとロボット側を別PCで動かす場合は、両方で同じ `ROS_DOMAIN_ID` を設定し、同じネットワークに置く。
+カメラが開けないときも shop_server は起動を続ける（画面の「動作確認」でマーカー読み取りを再現できる）。
+ロボットのカメラを使う場合は `camera_device: -1` と `image_topic` を設定する。
+shop_server とロボット側を別PCで動かす場合は、両方で同じ `ROS_DOMAIN_ID` を設定し、同じネットワークに置く。
 
 ### ROS なしで画面だけ試す
 
@@ -93,7 +82,7 @@ cd src/shop_robot
 pip3 install fastapi uvicorn opencv-contrib-python pillow
 python3 -m shop_robot.demo          # → http://localhost:8000/
 ```
-キューとロボット動作を同じプロセス内で模擬する。サンプル商品は `./demo_data/products.json` に入る。
+ロボット動作を同じプロセス内で模擬する。サンプル商品は `./demo_data/products.json` に入る。
 `python3 -m shop_robot.demo --camera 0` で PC の Web カメラを使うと、番号札をかざしての読み取りとカメラ映像も試せる。
 
 ## 番号札（ArUco マーカー）の印刷
@@ -110,11 +99,13 @@ A4 に 12 枚（マーカー 40mm）。**等倍（100%）で印刷**する。`--
 
 1. 「商品」タブで商品を登録（商品IDはロボット側がどの商品を準備するかの識別に使う）
 2. 注文を受けたら番号札を渡し、「注文」タブで商品をタップ → 番号札の番号を入力 → 送信
-   （番号欄には次の候補が自動で入る。送信後「ロボットに送信しました ✓」が出ればキューに入っている）
+   （番号欄には次の候補が自動で入る。この時点ではロボットには何も送らない）
 3. 「待ち行列」タブの「準備中」に注文内容が並ぶ。商品ができたら「完成」を押す
    → 呼び出し表示に番号が出る（新しい番号は点滅＋呼び出し音。音は表示画面を一度クリックすると有効になる）
-4. お客様が札をカメラにかざす → ロボットが動作開始
-5. 押し間違えたら「準備中に戻す」、札をなくしたときは「マーカーなしで開始」
+4. お客様が札をカメラにかざす → `/shop/prepare_order` に `[商品ID, 個数, ...]` を送信 → ロボットが動作開始
+   → ロボットが `/shop/prepare_done` を返したら「お渡し完了」
+5. 押し間違えたら「準備中に戻す」、札をなくしたときは「マーカーなしで開始」。
+   ロボットが完了を返さないときは「取り消し扱いにする」（ロボット自体は止まらない。後から届いた完了は無視する）
 6. 番号札を一巡したら「待ち行列」タブの「番号札のリセット」で 1番（または指定の番号）から振り直す。
    営業開始・終了時は「全注文をクリア」で注文・完了履歴を消して 1番に戻す
 
@@ -137,7 +128,7 @@ topics:                     # 使うトピック（型は何でもよい。Joint
   arm_state: {topic: /robot/arm/arrived,   type: std_msgs/msg/String}
 motions:                    # 動作 = 指令を出して(pub/msg)、完了を待つ(done/match)
   to_counter:
-    label: 受渡し台へ        # スタッフ画面の進捗に出る
+    label: 受渡し台へ        # ログと /shop/handover/state に出る
     pub: arm_cmd
     msg: {data: counter}
     done: arm_state
@@ -150,9 +141,8 @@ estop: {topic: estop, match: {data: true}}
 ```
 
 - `repeat: order`（既定）は 1 注文につき 1 回渡す。`item` / `unit` にすると商品ごと / 1 個ごとに sequence を繰り返し、
-  msg の中で `{product_id}` などが使える（`{order_number}` は常に使える）
+  msg の中で `{product_id}` などが使える（注文番号はロボットに届かないので `{order_number}` は使わない）
 - 失敗（つかめない・受け取られない・タイムアウト）→ 後始末 → 注文は呼び出し中に戻る（スタッフが「マーカーなしで開始」で再開できる）
-- 画面から取消 → 後始末をしてから取消完了。後始末に時間がかかるので `order_queue` の `cancel_timeout` は後始末より長くしておく（既定 30 秒）
 - 非常停止（`estop` の条件が成立）→ その場で中断し、後始末もしない。成立中は新しい注文を受け付けない
 - お客様が受け取ったことの検出（`taken`）は、グリッパの電流・力覚センサの変化などをロボット側で Bool にして出す想定。
   センサが無ければ `wait_taken` を `duration: 5.0`（一定時間差し出してから離す）にする
@@ -164,15 +154,13 @@ estop: {topic: estop, match: {data: true}}
 
 ## 実機の動作に置き換える（自作ノード）
 
-受取ノード（handover）を使わずにロボット側を自作する場合は、次のトピックだけ守ればよい（言語・ROS1/ROS2 は問わない）。
+受取ノード（handover）を使わずにロボット側を自作する場合は、次の2つだけ守ればよい（言語・ROS1/ROS2 は問わない）。
 
-1. `/shop/prepare_order`（Int32MultiArray `[注文番号, 商品ID, 個数, ...]`）を受け取ったら動作を始める
-2. 動作中に `/shop/prepare_cancel`（Int32）で同じ注文番号が来たら中止する
-3. 終わったら `/shop/prepare_result` に `[注文番号, 1]`（成功）/ `[注文番号, 0]`（失敗）/ `[注文番号, 2]`（取消）を送る
-4. （任意）`/shop/prepare_progress` に `[注文番号, 進捗]`、`/shop/prepare_step` に `"<注文番号> <ステップ名>"` を送ると画面に出る
+1. `/shop/prepare_order`（Int32MultiArray `[商品ID, 個数, 商品ID, 個数, ...]`）を受け取ったら動作を始める
+2. 終わったら `/shop/prepare_done`（Bool）に `true`（成功）/ `false`（失敗）を送る。受け付けられないときもすぐ `false` を返す
 
-ROS2 の Python なら `shop_robot/nodes/prepare_stub_node.py` の `PrepareNodeBase` を継承すると 1〜4 は自動で行われる。
-1個ずつ用意するなら `prepare_unit()`、注文全体をまとめて扱うなら `execute_order()` を書く（受取ノードは後者の例）。
+ROS2 の Python なら `shop_robot/nodes/prepare_stub_node.py` の `PrepareNodeBase` を継承すると 1・2 は自動で行われる。
+1個ずつ用意するなら `prepare_unit()`、依頼全体をまとめて扱うなら `execute_order()` を書く（受取ノードは後者の例）。
 
 ```python
 from shop_robot.nodes.prepare_stub_node import PrepareNodeBase
@@ -183,15 +171,12 @@ class MyRobot(PrepareNodeBase):
 
     def prepare_unit(self, item, k) -> bool:
         # item.product_id / item.quantity / k（何個目か）
-        if self.is_cancel_requested:
-            return True
         ...  # アームを動かす
         return True  # 失敗なら False（注文は呼び出し中に戻る）
 ```
 
-起動時は `use_stub:=false` にして自作ノードを別に起動する。動作は別スレッドで実行されるので、動作中も中止の依頼を受け取れる。
-中止を送ってから `cancel_timeout` 秒結果が返らないと、キュー側で取消扱いになる。
-`/shop/prepare_order` の購読者がいないときは、キューはロボット動作を始めず画面にエラーを出す。
+起動時は `use_stub:=false` にして自作ノードを別に起動する。
+`/shop/prepare_order` の購読者がいないときは、shop_server は依頼を送らず画面に「ロボット側が起動していません」と出す。
 
 ## テスト
 
@@ -203,15 +188,11 @@ cd src/shop_robot && python3 -m pytest test/
 ## 動作確認用コマンド
 
 ```bash
-ros2 topic echo /shop/orders
-ros2 topic echo /shop/prepare_order
-ros2 topic echo /shop/queue_status --qos-durability transient_local --field data
-ros2 topic pub --once /shop/orders std_msgs/msg/Int32MultiArray "{data: [12, 1, 2, 3, 1]}"   # 12番: 商品1×2, 商品3×1
-ros2 topic pub --once /shop/queue_command std_msgs/msg/String "{data: '1 ready 12'}"        # 12番を完成（呼び出し）
-ros2 topic pub --once /shop/marker_id std_msgs/msg/Int32 "{data: 12}"                       # 12番のマーカーを見せたことにする
-ros2 topic pub --once /shop/prepare_result std_msgs/msg/Int32MultiArray "{data: [12, 1]}"   # 12番の動作成功（ロボットなしで試すとき）
-ros2 run rqt_image_view rqt_image_view /shop/aruco/debug_image          # publish_debug_image:=true のとき
+ros2 topic echo /shop/prepare_order                                              # AR を読んだときに届く配列
+ros2 topic pub --once /shop/prepare_done std_msgs/msg/Bool "{data: true}"         # ロボットの完了を手で返す（use_stub:=false のとき）
+ros2 run shop_robot prepare_stub                                                 # スタブだけ別に起動
 ```
+ロボットなしで試すときは、画面の「待ち行列」→「動作確認」でマーカー読み取りを再現できる。
 
 ## データ
 
@@ -225,5 +206,3 @@ ros2 run rqt_image_view rqt_image_view /shop/aruco/debug_image          # publis
 
 - Web 画面は外部 CDN・フォントを使わないので、会場にインターネットがなくても動く
 - OpenCV は 4.5 系（Ubuntu 22.04 の apt 版）と 4.7 以降の ArUco API の両方に対応
-- 注文の送信自体は Topic（返答なし）なので、Web サーバは送信後に `/shop/queue_status` に注文が現れるのを
-  最大 2 秒待って受付を確認している。確認できないときは画面に警告が出る

@@ -249,7 +249,8 @@ function renderStatus() {
       <div class="items">${summary(q.active)}</div>
       <div class="progress"><div style="width:${Math.round(q.progress * 100)}%"></div></div>
       <div class="ptext">${esc(q.progress_text)}</div>
-      <div style="margin-top:12px"><button class="btn small danger" data-cmd="cancel" data-n="${q.active.order_number}">ロボット動作を中止</button></div>`
+      <div style="margin-top:12px"><button class="btn small danger" data-cmd="cancel" data-n="${q.active.order_number}">取り消し扱いにする</button>
+        <div class="hint" style="justify-content:flex-start;margin-top:6px">ロボットが完了を返さないとき用（ロボット自体は止まりません）</div></div>`
     : `<span class="state">待機中</span>`;
   now.innerHTML = `<h2>ロボット</h2>${body}${q.last_event ? `<div class="event">${esc(q.last_event)}</div>` : ""}`;
 
@@ -260,7 +261,7 @@ function renderStatus() {
 
 const CONFIRM = {
   cancel: (n) => (S.status?.queue?.active?.order_number === n
-    ? `${n}番のロボット動作を中止して注文を取り消しますか？` : `${n}番の注文を取り消しますか？`),
+    ? `${n}番を取り消し扱いにしますか？\n（ロボット自体は止まりません。ロボットの完了通知を待たずに注文を取り消します）` : `${n}番の注文を取り消しますか？`),
   force_start: (n) => `${n}番をマーカーなしでロボット動作開始しますか？`,
 };
 async function control(cmd, n) {

@@ -168,7 +168,7 @@ def test_plan_default_config():
     plan = build_plan(load_config(CONFIG), order(9))
     assert [s.motion.name for s in plan][-2:] == ["thanks", "home"]
     call = next(s for s in plan if s.motion.name == "call")
-    assert call.msg == {"data": "9番のお客様、どうぞお受け取りください"}
+    assert call.msg == {"data": "お待たせしました。どうぞお受け取りください"}  # 注文番号はロボットに届かないので使わない
 
 
 # --- Watcher ------------------------------------------------------------------

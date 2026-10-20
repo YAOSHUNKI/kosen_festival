@@ -1,6 +1,6 @@
 # 受取動作（受渡し台 → お客様へ手渡し）の定義
 #
-# handover ノードが /shop/prepare_order（std_msgs/Int32MultiArray [注文番号, 商品ID, 個数, ...]）を受けると、
+# handover ノードが /shop/prepare_order（std_msgs/Int32MultiArray [商品ID, 個数, ...]）を受けると、
 # before → sequence（repeat の単位ごと）→ after の順に motions を実行する。
 #
 # motion = トピックごとの動作オブジェクト
@@ -9,11 +9,11 @@
 #   timeout: done を待つ秒数（既定 10）         on_timeout: fail（既定・失敗扱い）/ continue（そのまま進む）
 #   duration: pub の後に待つ秒数（done なしなら単なる待ち時間）
 #   fresh: true（既定）なら動作開始後に届いたメッセージだけで判定。false なら直前の値でもよい（状態トピック向け）
-#   label: 進捗としてスタッフ画面に出す文言
+#   label: ログと /shop/handover/state に出す文言
 #   mock / mock_delay: mock_robot が done に返すメッセージと遅れ（省略時は match から作る / 既定 1 秒）
 #
 # match の書き方: {data: true} は等しい、{wrench.force.z: {lt: 2.0}} は比較（eq ne gt ge lt le）
-# msg / match / label の中では {order_number} {unit_count} {summary} が使える
+# msg / match / label の中では {unit_count} {summary} が使える（注文番号はトピックに含まれないので {order_number} は使えない）
 #   repeat: item なら {product_id} {product_name} {quantity} {item_index}、unit ならさらに {unit_index} も
 #
 # 実機に合わせて変えるのは主に topics（名前・型）と msg / match の中身。
@@ -69,7 +69,7 @@ motions:
   call:
     label: お声がけ
     pub: say
-    msg: {data: "{order_number}番のお客様、どうぞお受け取りください"}
+    msg: {data: "お待たせしました。どうぞお受け取りください"}
 
   wait_taken:
     label: お受け取りください
