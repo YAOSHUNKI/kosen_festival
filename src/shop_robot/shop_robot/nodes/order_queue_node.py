@@ -84,11 +84,11 @@ class OrderQueueNode(Node):
         except codec.CodecError as e:
             self.get_logger().warn(str(e))
             return
-        ok, text = self.handle(cmd, n)
+        ok, text = self.handle_command(cmd, n)
         self.result_pub.publish(String(data=codec.encode_command_result(rid, ok, text)))
         self.publish_status()
 
-    def handle(self, cmd: str, n: int) -> tuple[bool, str]:
+    def handle_command(self, cmd: str, n: int) -> tuple[bool, str]:
         try:
             if cmd == "cancel":
                 if self.q.cancel(n) == "active":
