@@ -24,3 +24,6 @@ cards*.pdf
 *.swp
 *~
 .DS_Store
+
+# 削除予定（標準メッセージ型への移行で不要になったもの）
+_to_delete/

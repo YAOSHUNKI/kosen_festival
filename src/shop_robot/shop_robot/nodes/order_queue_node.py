@@ -1,26 +1,31 @@
-"""注文キューノード（ロボット側）
+"""注文キューノード（ロボット側）。すべて標準メッセージ型（形式は core/codec.py）
 
-  sub  /shop/orders         shop_interfaces/Order       Web から届く注文を「準備中」に積む
-  sub  /shop/marker_id      std_msgs/Int32              ArUco 検出結果。呼び出し中の番号ならロボット動作開始
-  pub  /shop/queue_status   shop_interfaces/QueueStatus 状態（変化時 + 1Hz）
-  srv  /shop/queue_control  shop_interfaces/QueueControl 完成（呼び出し）・呼び出し取消・注文取消・強制開始
-  act  /shop/prepare_order  shop_interfaces/PrepareOrder ロボット動作ノードへの依頼（クライアント）
+  sub  /shop/orders               std_msgs/Int32MultiArray   [注文番号, 商品ID, 個数, ...] →「準備中」に積む
+  sub  /shop/marker_id            std_msgs/Int32             ArUco 検出結果。呼び出し中の番号ならロボット動作開始
+  sub  /shop/queue_command        std_msgs/String            スタッフ操作 "<要求ID> <コマンド> <注文番号>"
+  pub  /shop/queue_command_result std_msgs/String            "<要求ID> ok|ng <メッセージ>"
+  pub  /shop/queue_status         std_msgs/String (JSON)     状態（変化時 + 1Hz, transient_local）
+
+  ロボット動作ノードとのやり取り
+  pub  /shop/prepare_order        std_msgs/Int32MultiArray   [注文番号, 商品ID, 個数, ...] 動作開始の依頼
+  pub  /shop/prepare_cancel       std_msgs/Int32             注文番号  動作中止の依頼
+  sub  /shop/prepare_result       std_msgs/Int32MultiArray   [注文番号, 結果]  1=成功 0=失敗 2=取消
+  sub  /shop/prepare_progress     std_msgs/Float32MultiArray [注文番号, 進捗0〜1]（任意）
+  sub  /shop/prepare_step         std_msgs/String            "<注文番号> <ステップ名>"（任意。画面表示・失敗理由）
 """
 import rclpy
-from action_msgs.msg import GoalStatus
-from rclpy.action import ActionClient
 from rclpy.node import Node
-from shop_interfaces.action import PrepareOrder
-from shop_interfaces.msg import Order as OrderMsg
-from shop_interfaces.msg import QueueStatus
-from shop_interfaces.srv import QueueControl
-from std_msgs.msg import Int32
+from std_msgs.msg import Float32MultiArray, Int32, Int32MultiArray, String
 
+from ..core import codec
 from ..core.order_queue import (
     OrderQueue, QueueError, RESULT_CANCELED, RESULT_FAILED, RESULT_SUCCESS,
 )
-from .qos import ACTION_PREPARE, ORDERS_QOS, SRV_CONTROL, STATUS_QOS, TOPIC_MARKER, TOPIC_ORDERS, TOPIC_STATUS
-from .ros_convert import msg_to_order, order_to_msg, snapshot_to_msg
+from .qos import (
+    ORDERS_QOS, RELIABLE_QOS, STATUS_QOS, TOPIC_COMMAND, TOPIC_COMMAND_RESULT, TOPIC_MARKER,
+    TOPIC_ORDERS, TOPIC_PREPARE, TOPIC_PREPARE_CANCEL, TOPIC_PREPARE_PROGRESS, TOPIC_PREPARE_RESULT,
+    TOPIC_PREPARE_STEP, TOPIC_STATUS,
+)
 
 
 class OrderQueueNode(Node):
@@ -31,36 +36,39 @@ class OrderQueueNode(Node):
         self.declare_parameter("cancel_timeout", 5.0)
 
         self.q = OrderQueue(state_file)
-        self._goal_handle = None
-        self._cancel_requested = False
-        self._seq = 0
+        self._step = ""   # ロボットから届いた現在ステップ名（動作中の注文のもの）
 
-        self.status_pub = self.create_publisher(QueueStatus, TOPIC_STATUS, STATUS_QOS)
-        self.create_subscription(OrderMsg, TOPIC_ORDERS, self.on_order, ORDERS_QOS)
-        self.create_subscription(Int32, TOPIC_MARKER, self.on_marker, 10)
-        self.create_service(QueueControl, SRV_CONTROL, self.on_control)
-        self.prepare = ActionClient(self, PrepareOrder, ACTION_PREPARE)
+        self.status_pub = self.create_publisher(String, TOPIC_STATUS, STATUS_QOS)
+        self.result_pub = self.create_publisher(String, TOPIC_COMMAND_RESULT, RELIABLE_QOS)
+        self.prepare_pub = self.create_publisher(Int32MultiArray, TOPIC_PREPARE, RELIABLE_QOS)
+        self.cancel_pub = self.create_publisher(Int32, TOPIC_PREPARE_CANCEL, RELIABLE_QOS)
+        self.create_subscription(Int32MultiArray, TOPIC_ORDERS, self.on_order, ORDERS_QOS)
+        self.create_subscription(String, TOPIC_COMMAND, self.on_command, RELIABLE_QOS)
+        self.create_subscription(Int32, TOPIC_MARKER, lambda m: self.on_marker(m.data), 10)
+        self.create_subscription(Int32MultiArray, TOPIC_PREPARE_RESULT, self.on_result, RELIABLE_QOS)
+        self.create_subscription(Float32MultiArray, TOPIC_PREPARE_PROGRESS, self.on_progress, 10)
+        self.create_subscription(String, TOPIC_PREPARE_STEP, self.on_step, 10)
         self.create_timer(1.0 / rate, self.publish_status)
 
-        self.get_logger().info(f"注文キュー起動（準備中 {len(self.q.pending)}件・呼び出し中 {len(self.q.ready)}件, 状態ファイル {state_file}）")
+        self.get_logger().info(
+            f"注文キュー起動（準備中 {len(self.q.pending)}件・呼び出し中 {len(self.q.ready)}件, 状態ファイル {state_file}）")
         self.publish_status()
 
     def publish_status(self):
-        self.status_pub.publish(snapshot_to_msg(self.q.snapshot(), self.get_clock().now().to_msg()))
+        self.status_pub.publish(String(data=codec.encode_status(self.q.snapshot())))
 
     # --- 入力 -----------------------------------------------------------------
-    def on_order(self, msg: OrderMsg):
+    def on_order(self, msg: Int32MultiArray):
         try:
-            order = msg_to_order(msg)
+            order = codec.decode_order(msg.data)
             self.q.add(order)
-            self.get_logger().info(f"受付: {order.order_number}番 {order.summary()}")
-        except QueueError as e:
+            self.get_logger().info(f"受付: {order.order_number}番 {codec.encode_order(order)}")
+        except (codec.CodecError, QueueError) as e:
             self.q.note(str(e))
             self.get_logger().warn(f"注文を受け付けられません: {e}")
         self.publish_status()
 
-    def on_marker(self, msg: Int32):
-        n = msg.data
+    def on_marker(self, n: int):
         ok, reason = self.q.check_marker(n)
         if ok:
             self.get_logger().info(f"マーカー {n} を検出 → ロボット動作開始")
@@ -70,43 +78,45 @@ class OrderQueueNode(Node):
             self.get_logger().info(f"マーカー {n}: {reason}")
         self.publish_status()
 
-    def on_control(self, req: QueueControl.Request, res: QueueControl.Response):
-        n = req.order_number
+    def on_command(self, msg: String):
         try:
-            if req.command == QueueControl.Request.CANCEL:
+            rid, cmd, n = codec.decode_command(msg.data)
+        except codec.CodecError as e:
+            self.get_logger().warn(str(e))
+            return
+        ok, text = self.handle(cmd, n)
+        self.result_pub.publish(String(data=codec.encode_command_result(rid, ok, text)))
+        self.publish_status()
+
+    def handle(self, cmd: str, n: int) -> tuple[bool, str]:
+        try:
+            if cmd == "cancel":
                 if self.q.cancel(n) == "active":
                     self.cancel_active()
-                    res.message = f"{n}番のロボット動作を中止しています"
-            elif req.command == QueueControl.Request.MARK_READY:
+                    return True, f"{n}番のロボット動作を中止しています"
+            elif cmd == "ready":
                 self.q.mark_ready(n)
-            elif req.command == QueueControl.Request.UNMARK_READY:
+            elif cmd == "unready":
                 self.q.unmark_ready(n)
-            elif req.command == QueueControl.Request.CLEAR_ALL:
+            elif cmd == "clear_all":
                 if self.q.clear_all():
                     self.cancel_active()
-            elif req.command == QueueControl.Request.FORCE_START:
+            elif cmd == "force_start":
                 ok, reason = self.start(n)
                 if not ok:
                     raise QueueError(reason)
-            elif req.command == QueueControl.Request.INJECT_MARKER:
-                self.on_marker(Int32(data=n))
+            elif cmd == "inject_marker":
+                self.on_marker(n)
                 if self.q.active is None or self.q.active.order_number != n:
                     raise QueueError(self.q.last_event)
-            else:
-                raise QueueError(f"不明なコマンド {req.command}")
-            res.success = True
-            res.message = res.message or self.q.last_event
         except QueueError as e:
-            res.success, res.message = False, str(e)
-        self.publish_status()
-        return res
+            return False, str(e)
+        return True, self.q.last_event
 
     # --- ロボットへの動作依頼 -----------------------------------------------------
-    # 1回の動作ごとに seq を振り、古いゴールの遅れて届いた結果・進捗で新しい注文を壊さないようにする
     def start(self, n: int) -> tuple[bool, str]:
-        if not self.prepare.server_is_ready():
-            reason = "ロボット動作ノード（prepare_order）が起動していません"
-            self.q.note(reason)
+        if self.count_subscribers(TOPIC_PREPARE) == 0:
+            reason = f"ロボット動作ノード（/{TOPIC_PREPARE} の購読者）が起動していません"
             self.q.note("ただいまロボットを準備しています。スタッフにお声がけください", public=True)
             self.q.last_event = reason
             self.get_logger().error(reason)
@@ -115,65 +125,66 @@ class OrderQueueNode(Node):
             order = self.q.start(n)
         except QueueError as e:
             return False, str(e)
-        self._seq += 1
-        seq = self._seq
-        self._goal_handle = None
-        self._cancel_requested = False
-        goal = PrepareOrder.Goal(order=order_to_msg(order))
-        fut = self.prepare.send_goal_async(goal, feedback_callback=lambda fb: self.on_feedback(seq, fb))
-        fut.add_done_callback(lambda f: self.on_goal_response(seq, f))
+        self._step = ""
+        self.prepare_pub.publish(Int32MultiArray(data=codec.encode_order(order)))
         return True, ""
 
-    def on_goal_response(self, seq, fut):
-        if seq != self._seq:
+    def _is_active(self, n: int) -> bool:
+        return self.q.active is not None and self.q.active.order_number == n
+
+    def on_progress(self, msg: Float32MultiArray):
+        try:
+            n, p = codec.decode_progress(msg.data)
+        except codec.CodecError as e:
+            self.get_logger().warn(str(e))
             return
-        gh = fut.result()
-        if not gh.accepted:
-            self.q.requeue_active("ロボットが受け付けませんでした")
-            self.get_logger().error(self.q.last_event)
+        if self._is_active(n):
+            self.q.set_progress(p, self._step or f"{round(p * 100)}%")
             self.publish_status()
-            return
-        self._goal_handle = gh
-        gh.get_result_async().add_done_callback(lambda f: self.on_result(seq, f))
-        if self._cancel_requested:  # 受理前に取消された
-            gh.cancel_goal_async()
 
-    def on_feedback(self, seq, fb):
-        if seq != self._seq or self.q.active is None:
+    def on_step(self, msg: String):
+        try:
+            n, label = codec.decode_step(msg.data)
+        except codec.CodecError as e:
+            self.get_logger().warn(str(e))
             return
-        self.q.set_progress(fb.feedback.progress, fb.feedback.current_step)
-        self.publish_status()
+        if self._is_active(n):
+            self._step = label
+            self.q.set_progress(self.q.progress, label)
+            self.publish_status()
 
-    def on_result(self, seq, fut):
-        if seq != self._seq or self.q.active is None:
-            return  # 強制取消済みのゴールの結果
-        res = fut.result()
-        self._seq += 1
-        self._goal_handle = None
-        if res.status == GoalStatus.STATUS_SUCCEEDED and res.result.success:
-            order = self.q.finish_active(RESULT_SUCCESS)
-        elif res.status == GoalStatus.STATUS_CANCELED:
-            order = self.q.finish_active(RESULT_CANCELED)
+    def on_result(self, msg: Int32MultiArray):
+        try:
+            n, code = codec.decode_result(msg.data)
+        except codec.CodecError as e:
+            self.get_logger().warn(str(e))
+            return
+        if not self._is_active(n):
+            return  # 取消済み・強制終了済みの注文の結果が遅れて届いた
+        if code == codec.RESULT_SUCCESS:
+            self.q.finish_active(RESULT_SUCCESS)
+        elif code == codec.RESULT_CANCELED:
+            self.q.finish_active(RESULT_CANCELED)
         else:
-            order = self.q.finish_active(RESULT_FAILED, res.result.message or f"status={res.status}")
-        self.get_logger().info(f"{order.order_number}番: {self.q.last_event}")
+            reason = self._step[len("失敗: "):] if self._step.startswith("失敗: ") else (
+                f"ロボットが失敗を報告・{self._step}" if self._step else "ロボットが失敗を報告")
+            self.q.finish_active(RESULT_FAILED, reason)
+        self.get_logger().info(f"{n}番: {self.q.last_event}")
         self.publish_status()
 
     def cancel_active(self):
-        self._cancel_requested = True
-        if self._goal_handle is not None:
-            self._goal_handle.cancel_goal_async()
-        # 動作ノードが落ちていて応答がない場合でもキューが止まらないよう、一定時間後に強制終了
-        seq = self._seq
+        if self.q.active is None:
+            return
+        n = self.q.active.order_number
+        self.cancel_pub.publish(Int32(data=n))
+        # 動作ノードが応答しない場合でもキューが止まらないよう、一定時間後に取消扱いにする
         timer = None
 
         def force():
             self.destroy_timer(timer)
-            if seq == self._seq and self.q.active is not None:
-                self._seq += 1
-                self._goal_handle = None
-                order = self.q.finish_active(RESULT_CANCELED)
-                self.get_logger().warn(f"{order.order_number}番: 動作ノードから応答がないため取消扱いにしました")
+            if self._is_active(n):
+                self.q.finish_active(RESULT_CANCELED)
+                self.get_logger().warn(f"{n}番: 動作ノードから応答がないため取消扱いにしました")
                 self.publish_status()
 
         timer = self.create_timer(self.get_parameter("cancel_timeout").value, force)

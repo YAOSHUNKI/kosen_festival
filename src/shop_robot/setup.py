@@ -20,7 +20,7 @@ setup(
     zip_safe=False,
     maintainer="shunki",
     maintainer_email="riml2005@icloud.com",
-    description="注文受付 Web アプリ・注文キュー・ArUco 呼び出し・準備アクション",
+    description="注文受付 Web アプリ・注文キュー・ArUco 呼び出し・ロボット動作依頼（すべて標準メッセージ型）",
     license="MIT",
     tests_require=["pytest"],
     entry_points={
@@ -29,6 +29,8 @@ setup(
             "order_queue = shop_robot.nodes.order_queue_node:main",
             "aruco_detector = shop_robot.nodes.aruco_detector_node:main",
             "prepare_stub = shop_robot.nodes.prepare_stub_node:main",
+            "handover = shop_robot.nodes.handover_node:main",
+            "mock_robot = shop_robot.nodes.mock_robot_node:main",
             "make_marker_cards = shop_robot.tools.make_marker_cards:main",
             "shop_demo = shop_robot.demo:main",
         ],

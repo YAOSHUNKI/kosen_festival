@@ -16,7 +16,6 @@ from ..core.order_queue import (
     OrderQueue, QueueError, RESULT_CANCELED, RESULT_SUCCESS,
 )
 
-COMMANDS = ("cancel", "ready", "unready", "force_start", "inject_marker", "clear_all")
 
 
 class FrameBuffer:

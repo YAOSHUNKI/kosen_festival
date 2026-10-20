@@ -3,7 +3,7 @@
   pub  /shop/marker_id                  std_msgs/Int32             確定したマーカーID（= 注文番号）
   pub  /shop/camera/image/compressed    sensor_msgs/CompressedImage 確認用プレビュー（JPEG・検出結果入り）
   pub  /shop/aruco/debug_image          sensor_msgs/Image          検出結果入りの生画像（publish_debug_image=true のとき）
-  sub  /shop/queue_status               shop_interfaces/QueueStatus プレビューの枠の色分け用
+  sub  /shop/queue_status               std_msgs/String (JSON)     プレビューの枠の色分け用
   sub  <image_topic>                    sensor_msgs/Image          camera_device < 0 のときのみ
 
 camera_device >= 0 なら OpenCV で USB カメラを直接開く（受付に置いた Web カメラ向け）。
@@ -17,13 +17,12 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage, Image
-from shop_interfaces.msg import QueueStatus
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, String
 
+from ..core import codec
 from ..core.aruco import MarkerDebouncer, MarkerDetector
 from ..core.camera_preview import annotate, encode_jpeg, queue_sets
 from .qos import STATUS_QOS, TOPIC_CAMERA, TOPIC_MARKER, TOPIC_STATUS
-from .ros_convert import status_msg_to_snapshot
 
 
 class ArucoDetectorNode(Node):
@@ -52,7 +51,7 @@ class ArucoDetectorNode(Node):
         self.preview_period = 1.0 / max(preview_rate, 0.1)
         self._last_preview = 0.0
         self.ready, self.waiting = set(), set()
-        self.create_subscription(QueueStatus, TOPIC_STATUS, self.on_status, STATUS_QOS)
+        self.create_subscription(String, TOPIC_STATUS, self.on_status, STATUS_QOS)
 
         self.debug_pub = self.create_publisher(Image, "shop/aruco/debug_image", 1) if self.publish_debug else None
         self.bridge = None
@@ -74,8 +73,11 @@ class ArucoDetectorNode(Node):
             self.create_subscription(Image, image_topic, self.on_image, qos_profile_sensor_data)
             self.get_logger().info(f"{image_topic} からマーカーを検出します（{dict_name}）")
 
-    def on_status(self, msg: QueueStatus):
-        self.ready, self.waiting = queue_sets(status_msg_to_snapshot(msg))
+    def on_status(self, msg: String):
+        try:
+            self.ready, self.waiting = queue_sets(codec.decode_status(msg.data))
+        except ValueError:
+            pass
 
     def grab(self):
         ok, frame = self.cap.read()

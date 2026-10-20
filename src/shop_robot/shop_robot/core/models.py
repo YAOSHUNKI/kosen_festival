@@ -1,4 +1,4 @@
-"""ROS に依存しないデータモデル。ROS メッセージとの変換は nodes/ros_convert.py で行う。"""
+"""ROS に依存しないデータモデル。標準メッセージ型との変換は core/codec.py で行う。"""
 from __future__ import annotations
 
 import time
@@ -37,7 +37,7 @@ class Order:
         return " / ".join(f"{i.product_name or i.product_id}×{i.quantity}" for i in self.items)
 
 
-# QueueStatus.msg の state と同じ値
+# キュー状態（/shop/queue_status の JSON の state）
 STATE_IDLE = 0          # 注文なし
 STATE_PENDING = 1       # 準備中の注文のみ
 STATE_CALLING = 2       # 呼び出し中（マーカー待ち）

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import threading
 from pathlib import Path
@@ -17,10 +18,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ..core.aruco import dictionary_size, generate_marker
+from ..core.codec import COMMANDS
 from ..core.models import Order, OrderItem
 from ..core.order_queue import QueueError
 from ..core.products import ProductError, ProductStore
-from .bridge import COMMANDS, Bridge
+from .bridge import Bridge
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -132,9 +134,22 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     def config():
         return {"mode": bridge.mode, "dict_name": dict_name, "marker_max": marker_count - 1}
 
+    def with_names(st: dict | None) -> dict | None:
+        """ROS 経由の注文は商品IDしか持たないので、商品名を商品マスタから埋める"""
+        if not st:
+            return st
+        st = copy.deepcopy(st)
+        orders = st["pending"] + st["ready"] + ([st["active"]] if st.get("active") else [])
+        for o in orders:
+            for it in o["items"]:
+                if not it.get("product_name"):
+                    p = products.get(it["product_id"])
+                    it["product_name"] = p.name if p else f"ID{it['product_id']}"
+        return st
+
     @app.get("/api/status")
     def status():
-        st = bridge.status()
+        st = with_names(bridge.status())
         return {"connected": st is not None, "queue": st, "next_number": next_number(st),
                 "camera": bridge.camera.get() is not None}
 

@@ -14,7 +14,8 @@ order_queue:
   ros__parameters:
     state_file: "~/.shop_robot/queue_state.json"   # 再起動しても待ち行列を復元
     status_rate: 1.0
-    cancel_timeout: 5.0      # 取消を送っても動作ノードが応答しないとき強制終了するまでの秒数
+    cancel_timeout: 30.0     # 取消を送っても動作ノードが応答しないとき強制終了するまでの秒数
+                             # （受取ノードは取消後に on_abort で台へ戻す動作をするので、その時間より長く）
 
 aruco_detector:
   ros__parameters:
@@ -38,3 +39,13 @@ prepare_stub:
   ros__parameters:
     seconds_per_item: 3.0
     fail_product_id: -1      # この商品IDで失敗させる（失敗時の流れの確認用）
+
+handover:
+  ros__parameters:
+    motion_file: ""          # 空なら shop_robot/config/handover.yaml（実機用に別ファイルを指定してよい）
+
+mock_robot:
+  ros__parameters:
+    motion_file: ""          # handover と同じファイルにする
+    delay: 1.0               # 各動作の完了を返すまでの秒数（handover.yaml の mock_delay が優先）
+    fail_motion: ""          # この動作名には応答しない（例 grasp: つかみ失敗の流れの確認）

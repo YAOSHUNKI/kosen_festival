@@ -1,0 +1,108 @@
+# 受取動作（受渡し台 → お客様へ手渡し）の定義
+#
+# handover ノードが /shop/prepare_order（std_msgs/Int32MultiArray [注文番号, 商品ID, 個数, ...]）を受けると、
+# before → sequence（repeat の単位ごと）→ after の順に motions を実行する。
+#
+# motion = トピックごとの動作オブジェクト
+#   pub:  指令を出すトピック（topics のキー）   msg:   出すメッセージ（フィールド: 値）
+#   done: 完了を待つトピック（topics のキー）   match: 完了とみなす条件
+#   timeout: done を待つ秒数（既定 10）         on_timeout: fail（既定・失敗扱い）/ continue（そのまま進む）
+#   duration: pub の後に待つ秒数（done なしなら単なる待ち時間）
+#   fresh: true（既定）なら動作開始後に届いたメッセージだけで判定。false なら直前の値でもよい（状態トピック向け）
+#   label: 進捗としてスタッフ画面に出す文言
+#   mock / mock_delay: mock_robot が done に返すメッセージと遅れ（省略時は match から作る / 既定 1 秒）
+#
+# match の書き方: {data: true} は等しい、{wrench.force.z: {lt: 2.0}} は比較（eq ne gt ge lt le）
+# msg / match / label の中では {order_number} {unit_count} {summary} が使える
+#   repeat: item なら {product_id} {product_name} {quantity} {item_index}、unit ならさらに {unit_index} も
+#
+# 実機に合わせて変えるのは主に topics（名前・型）と msg / match の中身。
+# 下の例は「腕は姿勢名(String)で指令し、到着した姿勢名(String)を返す」コントローラを想定している。
+
+repeat: order        # order: 1注文につき1回渡す（スタッフが1注文分をまとめて受渡し台に置く）
+                     # item: 商品ごと / unit: 1個ごと
+
+topics:
+  arm_cmd:   {topic: /robot/arm/pose_name,      type: std_msgs/msg/String}   # 目標姿勢名
+  arm_state: {topic: /robot/arm/arrived,        type: std_msgs/msg/String}   # 到着した姿勢名
+  grip_cmd:  {topic: /robot/gripper/command,    type: std_msgs/msg/Float32}  # 1.0 閉 / 0.0 開
+  holding:   {topic: /robot/gripper/holding,    type: std_msgs/msg/Bool}     # 物を持っているか
+  taken:     {topic: /robot/handover/taken,     type: std_msgs/msg/Bool}     # お客様が引っ張った（力覚・電流など）
+  say:       {topic: /robot/say,                type: std_msgs/msg/String}   # 音声・表示（無ければ誰も購読しないだけ）
+  estop:     {topic: /robot/estop,              type: std_msgs/msg/Bool}     # 周期的に出し続けること
+  # ready:   {topic: /robot/ready,              type: std_msgs/msg/Bool}
+  # qos: reliable（既定）/ best_effort（センサ系で相手が best_effort のとき）/ latched（相手が transient_local のとき）
+
+motions:
+  home:
+    label: 初期姿勢へ
+    pub: arm_cmd
+    msg: {data: home}
+    done: arm_state
+    match: {data: home}
+    timeout: 10.0
+
+  to_counter:
+    label: 受渡し台へ
+    pub: arm_cmd
+    msg: {data: counter}
+    done: arm_state
+    match: {data: counter}
+    timeout: 10.0
+
+  grasp:
+    label: 商品をつかむ
+    pub: grip_cmd
+    msg: {data: 1.0}
+    done: holding
+    match: {data: true}
+    timeout: 3.0            # つかめなかったら失敗 → 注文は呼び出し中に戻る
+
+  to_present:
+    label: お客様へ差し出す
+    pub: arm_cmd
+    msg: {data: present}
+    done: arm_state
+    match: {data: present}
+    timeout: 10.0
+
+  call:
+    label: お声がけ
+    pub: say
+    msg: {data: "{order_number}番のお客様、どうぞお受け取りください"}
+
+  wait_taken:
+    label: お受け取りください
+    done: taken
+    match: {data: true}
+    timeout: 30.0           # 受け取られなければ失敗 → on_abort で台に戻す
+    mock_delay: 3.0
+    # 受け取り検出のセンサが無い場合は上4行の代わりに:
+    #   duration: 5.0       # 5秒差し出してから離す
+
+  release:
+    label: 手を離す
+    pub: grip_cmd
+    msg: {data: 0.0}
+    done: holding
+    match: {data: false}
+    timeout: 3.0
+
+  thanks:
+    label: お礼
+    pub: say
+    msg: {data: "ありがとうございました"}
+
+sequence: [to_counter, grasp, to_present, call, wait_taken, release, thanks]
+before: []
+after: [home]
+
+# 失敗・取消時の後始末（取消は無視して最後まで実行。失敗しても次へ進む）
+# 差し出したまま失敗したら、商品を受渡し台に戻してから初期姿勢へ
+on_abort: [to_counter, release, home]
+
+# 非常停止: 条件を満たしている間は新しい注文を受けず、動作中なら即中断（後始末もしない）
+estop: {topic: estop, match: {data: true}}
+
+# ロボットの準備完了信号を見る場合（来ていないと注文を受け付けない）
+# ready: {topic: ready, match: {data: true}}
