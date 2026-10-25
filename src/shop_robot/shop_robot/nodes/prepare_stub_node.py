@@ -1,6 +1,7 @@
 """ロボット側ノードの共通部分とスタブ（形式は core/codec.py）
 
   sub  /shop/prepare_order  std_msgs/Int32MultiArray  [商品ID, 個数, 商品ID, 個数, ...]  動作開始
+                                                     （登録商品がすべて入り、注文のない商品は個数 0。0 の商品は作らない）
   pub  /shop/prepare_done   std_msgs/Bool             終わったら true（成功）/ false（失敗）
 
 実機に置き換えるときは PrepareNodeBase を継承して、

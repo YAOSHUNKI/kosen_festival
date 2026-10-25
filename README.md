@@ -25,13 +25,15 @@
 
 | トピック | 型 | 向き | 内容 |
 |---|---|---|---|
-| `/shop/prepare_order` | `std_msgs/Int32MultiArray` | システム → ロボット | `data = [商品ID, 個数, 商品ID, 個数, ...]`。**呼び出し中の番号札（AR マーカー）が読まれたときだけ**、その注文の分を1回 publish する |
+| `/shop/prepare_order` | `std_msgs/Int32MultiArray` | システム → ロボット | `data = [商品ID, 個数, 商品ID, 個数, ...]`。**呼び出し中の番号札（AR マーカー）が読まれたときだけ**、その注文の分を1回 publish する。登録されている商品はすべて入れ、注文されていない商品は個数 0（IDの小さい順で固定） |
 | `/shop/prepare_done` | `std_msgs/Bool` | ロボット → システム | 終わったら `true`（成功）/ `false`（失敗）。届くまで次の注文は送らない |
 
 - 注文番号はトピックに含まない（ロボットは商品IDと個数だけを見ればよい）。RELIABLE / VOLATILE
 - 送る商品IDは、商品マスタの「ロボット用ID」（空欄なら商品ID）。割引版など中身が同じ商品は元の商品のIDにしておくと、
   ロボットには同じIDで届き、個数は合計される（例: たこ焼き ID 1 ×2 ＋ たこ焼き割引 ID 11・ロボット用ID 1 ×1 → `[1, 3]`）。
   送るIDは受付時点の設定で決まる（受付後に商品設定を変えても、受付済みの注文には影響しない）
+- 例: 登録が ID 1・2・3・4 と 11（ロボット用ID 1）で、注文が ID 3 ×2 と ID 11 ×1 → `[1, 1, 2, 0, 3, 2, 4, 0]`。
+  ロボット側は個数 0 の商品は作らない（`PrepareNodeBase` は自動で飛ばす）
 - Web 画面・待ち行列・マーカー読み取りは `shop_server` の中で動くので、それらの間に ROS トピックはない
 - 形式の定義と変換関数は `shop_robot/core/codec.py`。std_msgs だけなので ros1_bridge などでもそのまま中継できる
 
@@ -163,7 +165,7 @@ estop: {topic: estop, match: {data: true}}
 
 受取ノード（handover）を使わずにロボット側を自作する場合は、次の2つだけ守ればよい（言語・ROS1/ROS2 は問わない）。
 
-1. `/shop/prepare_order`（Int32MultiArray `[商品ID, 個数, 商品ID, 個数, ...]`）を受け取ったら動作を始める
+1. `/shop/prepare_order`（Int32MultiArray `[商品ID, 個数, 商品ID, 個数, ...]`）を受け取ったら動作を始める（個数 0 の商品は作らない）
 2. 終わったら `/shop/prepare_done`（Bool）に `true`（成功）/ `false`（失敗）を送る。受け付けられないときもすぐ `false` を返す
 
 ROS2 の Python なら `shop_robot/nodes/prepare_stub_node.py` の `PrepareNodeBase` を継承すると 1・2 は自動で行われる。

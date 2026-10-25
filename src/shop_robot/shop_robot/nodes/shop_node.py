@@ -3,7 +3,8 @@
 外とやり取りする ROS トピックはロボットとの2本だけ（形式は core/codec.py）:
 
   pub  /shop/prepare_order  std_msgs/Int32MultiArray  [商品ID, 個数, 商品ID, 個数, ...]
-                            呼び出し中の番号札（AR マーカー）が読まれたときだけ publish
+                            呼び出し中の番号札（AR マーカー）が読まれたときだけ publish。
+                            登録されている全商品を ID の小さい順に入れる（注文されていない商品は個数 0）
   sub  /shop/prepare_done   std_msgs/Bool             ロボットの完了通知（true=成功 / false=失敗）
 
   sub  <image_topic>        sensor_msgs/Image         camera_device < 0 のときだけ（ロボットのカメラを使う場合）
@@ -30,8 +31,9 @@ from .qos import RELIABLE_QOS, TOPIC_DONE, TOPIC_PREPARE
 class RosRobot:
     """ShopBridge の Robot を ROS トピックで実装する"""
 
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, products: ProductStore):
         self.node = node
+        self.products = products
         self.pub = node.create_publisher(Int32MultiArray, TOPIC_PREPARE, RELIABLE_QOS)
 
     def available(self) -> tuple[bool, str]:
@@ -40,7 +42,8 @@ class RosRobot:
         return True, ""
 
     def send(self, order: Order) -> None:
-        data = codec.encode_items(order)
+        # 登録されている全商品を入れる（注文されていない商品は個数 0）
+        data = codec.encode_items(order, {p.send_id for p in self.products.list()})
         self.pub.publish(Int32MultiArray(data=data))
         self.node.get_logger().info(f"{order.order_number}番 → /{TOPIC_PREPARE} {data}")
 
@@ -62,8 +65,9 @@ class ShopNode(Node):
         fps = p("frame_rate", 15.0)
         width, height = p("camera_width", 640), p("camera_height", 480)
 
+        self.products = ProductStore(self.products_file)   # Web 画面と共有（画面で追加した商品もすぐ反映）
         self.bridge = ShopBridge(
-            RosRobot(self), state_file=state_file, dict_name=self.dict_name,
+            RosRobot(self, self.products), state_file=state_file, dict_name=self.dict_name,
             mirror=p("preview_mirror", True), min_frames=p("min_frames", 5), cooldown_s=p("cooldown_sec", 3.0),
             log=lambda s: self.get_logger().info(s))
         self.create_subscription(Bool, TOPIC_DONE, lambda m: self.bridge.robot_done(bool(m.data)), RELIABLE_QOS)
@@ -91,7 +95,7 @@ def main(args=None):
     executor.add_node(node)
     threading.Thread(target=executor.spin, daemon=True).start()
 
-    app = create_app(node.bridge, ProductStore(node.products_file), node.dict_name)
+    app = create_app(node.bridge, node.products, node.dict_name)
     node.get_logger().info(f"注文画面: http://{node.host}:{node.port}/  呼び出し表示: /display")
     try:
         uvicorn.run(app, host=node.host, port=node.port, log_level="warning")
