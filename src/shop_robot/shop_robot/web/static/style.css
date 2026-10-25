@@ -149,6 +149,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 .ptable td.ops { text-align: right; white-space: nowrap; }
 .ptable input.name { width: 100%; }
 .ptable input.price { width: 100px; }
+.ptable input.rid { width: 120px; }
 
 /* ---- トースト ---- */
 #toast {

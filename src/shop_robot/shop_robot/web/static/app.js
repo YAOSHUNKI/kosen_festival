@@ -81,7 +81,7 @@ function renderProducts() {
     return `<button class="pbtn ${n ? "sel" : ""}" data-pid="${p.id}">
       ${n ? `<span class="pcount">${n}</span>` : ""}
       <span class="pname">${esc(p.name)}</span>
-      <span class="pmeta"><span>ID ${p.id}</span><span>${p.price ? yen(p.price) : ""}</span></span>
+      <span class="pmeta"><span>ID ${p.id}${p.robot_id != null ? ` → ${p.robot_id}` : ""}</span><span>${p.price ? yen(p.price) : ""}</span></span>
     </button>`;
   }).join("");
 }
@@ -352,9 +352,10 @@ function renderProductTable() {
         <td class="id">${p.id}</td>
         <td><input class="name" value="${esc(p.name)}"></td>
         <td><input class="price" inputmode="numeric" value="${p.price || ""}" placeholder="0"></td>
+        <td><input class="rid" inputmode="numeric" value="${p.robot_id ?? ""}" placeholder="${p.id}（同じ）"></td>
         <td class="ops"><button class="btn small ghost" data-save="${p.id}">保存</button>
           <button class="btn small danger" data-del="${p.id}">削除</button></td></tr>`).join("")
-    : `<tr><td colspan="4" class="hint" style="padding:16px">商品がありません</td></tr>`;
+    : `<tr><td colspan="5" class="hint" style="padding:16px">商品がありません</td></tr>`;
 }
 
 async function loadProducts(onlyIfChanged = false) {
@@ -369,11 +370,12 @@ async function loadProducts(onlyIfChanged = false) {
 $("#addform").addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
-  const id = String(f.get("id")).trim(), price = String(f.get("price")).trim();
+  const id = String(f.get("id")).trim(), price = String(f.get("price")).trim(), rid = String(f.get("robot_id")).trim();
   if (!/^\d+$/.test(id)) return toast("商品IDは数字で入力してください", "err");
   if (price && !/^\d+$/.test(price)) return toast("価格は数字で入力してください", "err");
+  if (rid && !/^\d+$/.test(rid)) return toast("ロボット用IDは数字で入力してください", "err");
   try {
-    await api("/api/products", { method: "POST", body: { id: +id, name: f.get("name"), price: +(price || 0) } });
+    await api("/api/products", { method: "POST", body: { id: +id, name: f.get("name"), price: +(price || 0), robot_id: rid ? +rid : null } });
     e.target.reset();
     toast("追加しました", "ok");
     loadProducts();
@@ -385,9 +387,10 @@ $("#ptbody").addEventListener("click", async (e) => {
   try {
     if (save) {
       const id = +save.dataset.save, row = save.closest("tr");
-      const price = row.querySelector(".price").value.trim();
+      const price = row.querySelector(".price").value.trim(), rid = row.querySelector(".rid").value.trim();
       if (price && !/^\d+$/.test(price)) return toast("価格は数字で入力してください", "err");
-      await api(`/api/products/${id}`, { method: "PUT", body: { id, name: row.querySelector(".name").value, price: +(price || 0) } });
+      if (rid && !/^\d+$/.test(rid)) return toast("ロボット用IDは数字で入力してください", "err");
+      await api(`/api/products/${id}`, { method: "PUT", body: { id, name: row.querySelector(".name").value, price: +(price || 0), robot_id: rid ? +rid : null } });
       toast("保存しました", "ok");
     } else if (del) {
       const id = +del.dataset.del;

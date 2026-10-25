@@ -16,3 +16,8 @@ def test_items_roundtrip():
 def test_items_invalid(bad):
     with pytest.raises(codec.CodecError):
         codec.decode_items(bad)
+
+
+def test_items_shared_robot_id_merged():
+    o = Order(5, [OrderItem(1, "たこ焼き", 2), OrderItem(3, "ラムネ", 1), OrderItem(11, "たこ焼き(割引)", 1, robot_id=1)])
+    assert codec.encode_items(o) == [1, 3, 3, 1]   # ID 1 にまとめて個数は合計

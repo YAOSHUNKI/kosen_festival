@@ -10,10 +10,17 @@ class OrderItem:
     product_id: int
     product_name: str
     quantity: int
+    robot_id: int | None = None   # ロボットに送るID（受付時に商品マスタから決める）。None なら product_id
+
+    @property
+    def send_id(self) -> int:
+        return self.product_id if self.robot_id is None else self.robot_id
 
     @classmethod
     def from_dict(cls, d: dict) -> "OrderItem":
-        return cls(int(d["product_id"]), str(d.get("product_name", "")), int(d["quantity"]))
+        rid = d.get("robot_id")
+        return cls(int(d["product_id"]), str(d.get("product_name", "")), int(d["quantity"]),
+                   None if rid is None else int(rid))
 
 
 @dataclass

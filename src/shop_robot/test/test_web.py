@@ -190,3 +190,21 @@ def test_display_assets(tmp_path):
     assert "/static/char.png" in html
     r = c.get("/static/char.png")
     assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+
+
+def test_discount_product_shares_robot_id(tmp_path):
+    from shop_robot.core import codec
+    from shop_robot.core.models import Order as O
+    c, bridge = make(tmp_path)
+    r = c.post("/api/products", json={"id": 11, "name": "たこ焼き(割引)", "price": 250, "robot_id": 1})
+    assert r.status_code == 200 and r.json()["robot_id"] == 1
+    assert c.post("/api/products", json={"id": 12, "name": "x", "robot_id": -1}).status_code == 422
+    c.post("/api/orders", json={"order_number": 3, "items": [{"product_id": 1, "quantity": 2}, {"product_id": 11, "quantity": 1}]})
+    items = c.get("/api/status").json()["queue"]["pending"][0]["items"]
+    assert {(i["product_id"], i["robot_id"]) for i in items} == {(1, None), (11, 1)}
+    order = O.from_dict(bridge.status()["pending"][0])        # 保存・復元を経ても送るIDは残る
+    assert codec.encode_items(order) == [1, 3]
+    # 受付後に商品設定を変えても、受付済みの注文の送るIDは変わらない
+    c.put("/api/products/11", json={"id": 11, "name": "たこ焼き(割引)", "price": 250})
+    order = O.from_dict(bridge.status()["pending"][0])
+    assert codec.encode_items(order) == [1, 3]

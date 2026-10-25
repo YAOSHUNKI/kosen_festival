@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>注文受付</title>
-<link rel="stylesheet" href="/static/style.css?v=6">
+<link rel="stylesheet" href="/static/style.css?v=7">
 </head>
 <body>
 <header>
@@ -107,11 +107,14 @@
         <input name="id" type="text" inputmode="numeric" placeholder="商品ID" style="width:110px" required>
         <input name="name" type="text" placeholder="商品名" style="flex:1; min-width:160px" required>
         <input name="price" type="text" inputmode="numeric" placeholder="価格(円・任意)" style="width:140px">
+        <input name="robot_id" type="text" inputmode="numeric" placeholder="ロボット用ID(任意)" style="width:190px">
         <button class="btn small primary" type="submit">追加</button>
       </form>
-      <p class="hint" style="justify-content:flex-start">商品IDはロボット側でどの商品を準備するかの識別に使われます。</p>
+      <p class="hint" style="justify-content:flex-start;display:block;line-height:1.6">
+        ロボットには「ロボット用ID」を送ります（空欄なら商品IDと同じ）。割引版など中身が同じ商品は、元の商品のIDを入れてください。<br>
+        例: たこ焼き（ID 1）と たこ焼き割引（ID 11・ロボット用ID 1）→ 両方とも ID 1 としてロボットに送り、個数は合計されます。</p>
       <table class="ptable" style="margin-top:8px">
-        <thead><tr><th>ID</th><th>商品名</th><th>価格(円)</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>商品名</th><th>価格(円)</th><th>ロボット用ID</th><th></th></tr></thead>
         <tbody id="ptbody"></tbody>
       </table>
     </div>
@@ -127,6 +130,6 @@
     </div>
   </div>
 </div>
-<script src="/static/app.js?v=6"></script>
+<script src="/static/app.js?v=7"></script>
 </body>
 </html>

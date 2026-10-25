@@ -166,3 +166,17 @@ def test_queue_clear_all(tmp_path):
     assert q.clear_all() is True
     q.finish_active(RESULT_CANCELED)
     assert q.state == STATE_IDLE
+
+
+def test_products_robot_id(tmp_path):
+    path = tmp_path / "products.json"
+    s = ProductStore(path)
+    s.add(1, "たこ焼き", 300)
+    s.add(11, "たこ焼き(割引)", 250, robot_id=1)
+    s.add(12, "そのまま", 100, robot_id=12)        # 商品IDと同じなら持たない
+    s2 = ProductStore(path)
+    assert [(p.id, p.robot_id, p.send_id) for p in s2.list()] == [(1, None, 1), (11, 1, 1), (12, None, 12)]
+    s2.update(11, "たこ焼き(割引)", 250, robot_id=None)  # 空にすると商品IDで送る
+    assert ProductStore(path).get(11).send_id == 11
+    with pytest.raises(ProductError):
+        s2.add(13, "x", 0, robot_id=-1)

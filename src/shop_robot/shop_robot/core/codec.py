@@ -3,6 +3,8 @@
 /shop/prepare_order  std_msgs/Int32MultiArray   システム → ロボット
     data = [商品ID, 個数, 商品ID, 個数, ...]
     お客様が呼び出し中の番号札（AR マーカー）をかざしたときだけ、その注文の分を1回 publish する。
+    商品ID は商品マスタの「ロボット用ID」（未設定なら商品ID）。同じIDは個数を合計して1つにまとめる
+    （例: たこ焼き(ID 1)×2 と たこ焼き割引(ID 11, ロボット用ID 1)×1 → [1, 3]）。
 
 /shop/prepare_done   std_msgs/Bool              ロボット → システム
     data = true（成功） / false（失敗）
@@ -18,9 +20,12 @@ class CodecError(ValueError):
 
 
 def encode_items(order: Order) -> list[int]:
-    data: list[int] = []
+    totals: dict[int, int] = {}   # 送るID → 個数（最初に出てきた順を保つ）
     for it in order.items:
-        data += [int(it.product_id), int(it.quantity)]
+        totals[it.send_id] = totals.get(it.send_id, 0) + int(it.quantity)
+    data: list[int] = []
+    for sid, qty in totals.items():
+        data += [int(sid), qty]
     return data
 
 

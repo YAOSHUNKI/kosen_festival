@@ -30,6 +30,7 @@ class ProductIn(BaseModel):
     id: int = Field(ge=0)
     name: str
     price: int = Field(default=0, ge=0)
+    robot_id: int | None = Field(default=None, ge=0)   # ロボットに送るID（空なら商品IDと同じ）
 
 
 class OrderItemIn(BaseModel):
@@ -155,19 +156,19 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
     # --- 商品 -----------------------------------------------------------------
     @app.get("/api/products")
     def list_products():
-        return [p.__dict__ for p in products.list()]
+        return [vars(p) for p in products.list()]
 
     @app.post("/api/products")
     def add_product(p: ProductIn):
         try:
-            return products.add(p.id, p.name, p.price).__dict__
+            return vars(products.add(p.id, p.name, p.price, p.robot_id))
         except ProductError as e:
             raise HTTPException(400, str(e))
 
     @app.put("/api/products/{product_id}")
     def update_product(product_id: int, p: ProductIn):
         try:
-            return products.update(product_id, p.name, p.price).__dict__
+            return vars(products.update(product_id, p.name, p.price, p.robot_id))
         except ProductError as e:
             raise HTTPException(400, str(e))
 
@@ -194,7 +195,7 @@ def create_app(bridge: Bridge, products: ProductStore, dict_name: str = "DICT_4X
             p = products.get(pid)
             if p is None:
                 raise HTTPException(400, f"商品ID {pid} は登録されていません")
-            items.append(OrderItem(pid, p.name, qty))
+            items.append(OrderItem(pid, p.name, qty, p.robot_id))   # 送るIDは受付時点の設定で決める
 
         with submit_lock:  # 2台のタブレットから同じ番号を同時送信したときの重複防止
             st = bridge.status()
