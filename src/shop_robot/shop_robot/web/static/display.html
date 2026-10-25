@@ -5,79 +5,114 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>呼び出し表示</title>
 <style>
+  /* 色はキャラクター画像から取った値。--red は char.png の背景色と同じにしておくこと（継ぎ目が出ないように） */
   :root {
-    --bg: #18202e; --panel: #222c3d; --ink: #f4efe4; --muted: #9aa3b4;
-    --accent: #f0603f; --ok: #5cc98a; --indigo: #7da2d6;
-    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    --red: #B94047; --maroon: #7E2931; --cream: #FFF8EE; --toast: #DCA85B; --line: #EBD9C6; --muted: #A5676C;
+    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden;
-    font-variant-numeric: tabular-nums;
-    display: grid; grid-template-columns: 1.7fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 2vw; padding: 2vw;
+    font-family: var(--font); font-variant-numeric: tabular-nums; overflow: hidden; height: 100vh;
+    display: grid; grid-template-columns: 38vw 1fr; background: var(--cream);
   }
-  .main {
-    background: var(--panel); border-radius: 2vw; padding: 2.5vw 3vw; display: flex; flex-direction: column;
-    align-items: center; text-align: center; position: relative; overflow: hidden; min-height: 0;
-  }
-  .main.calling { border: .5vw solid var(--accent); }
-  .label { font-size: 2.6vw; font-weight: 800; letter-spacing: .15em; color: var(--muted); }
-  .main.calling .label { color: var(--accent); }
-  .called {
-    flex: 1; min-height: 0; width: 100%; display: flex; flex-wrap: wrap; align-content: center; justify-content: center;
-    gap: 1vw 4vw;
-  }
-  .called span { font-weight: 900; line-height: 1.05; color: var(--ink); }
-  .called span.new { color: var(--accent); animation: flash 1s ease-in-out 6; }
-  @keyframes flash { 50% { opacity: .25; } }
-  .msg { font-size: 2.4vw; font-weight: 700; line-height: 1.5; }
-  .idle { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2vw; }
-  .marker-hint { display: flex; align-items: center; gap: 1.5vw; font-size: 2.3vw; font-weight: 700; text-align: left; line-height: 1.4; }
-  .marker-hint .mk { width: 5vw; height: 5vw; background: #fff; padding: .5vw; border-radius: .5vw; flex: none; }
 
-  .side { display: flex; flex-direction: column; gap: 2vw; min-height: 0; }
-  .box { background: var(--panel); border-radius: 2vw; padding: 2vw; min-height: 0; }
-  .box h2 { margin: 0 0 1.2vw; font-size: 2vw; letter-spacing: .12em; color: var(--muted); }
-  .box.pending { flex: 1; overflow: hidden; }
-  .box.cam { padding: 1.2vw; flex: none; }
-  .box.cam h2 { margin-bottom: .8vw; font-size: 1.5vw; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cam-view { aspect-ratio: 4 / 3; max-height: 38vh; margin: 0 auto; background: #111723; border-radius: 1.2vw; overflow: hidden; }
-  body.with-cam .box.robot { padding: 1.4vw 2vw; }
-  body.with-cam .box.robot h2 { margin-bottom: .6vw; }
-  body.with-cam .robot .num { font-size: 4.5vw; }
-  body.with-cam .side { gap: 1.2vw; }
-  body.with-cam .box.pending { padding: 1.4vw 2vw; }
-  body.with-cam .box.pending h2 { margin-bottom: .6vw; }
-  body.with-cam .nums span { font-size: 2.8vw; min-width: 5.5vw; }
-  .cam-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .box.cam[hidden] { display: none; }
-  .robot .num { font-size: 6vw; font-weight: 900; color: var(--indigo); line-height: 1; }
-  .robot .num small { font-size: 2.2vw; color: var(--ink); margin-left: .4vw; }
-  .bar { height: 1vw; border-radius: .5vw; background: rgba(255,255,255,.12); margin-top: 1.2vw; overflow: hidden; }
-  .bar > div { height: 100%; background: var(--indigo); transition: width .5s; }
-  .nums { display: flex; flex-wrap: wrap; gap: 1vw; }
-  .nums span { font-size: 3.6vw; font-weight: 900; min-width: 7vw; text-align: center; padding: .3vw 1vw; border-radius: 1vw; background: rgba(255,255,255,.06); }
-  .none { font-size: 2vw; color: var(--muted); }
-  .event { grid-column: 1 / -1; font-size: 2.4vw; font-weight: 800; text-align: center; min-height: 3.4vw; }
-  .offline { position: fixed; top: 1vw; right: 1vw; background: var(--accent); color: #fff; padding: .6vw 1.2vw; border-radius: .8vw; font-size: 1.4vw; font-weight: 800; }
-  #sound { position: fixed; left: 1vw; bottom: 1vw; border: 0; background: rgba(255,255,255,.1); color: var(--muted); font: inherit; font-size: 1.2vw; padding: .5vw 1vw; border-radius: .6vw; cursor: pointer; }
+  /* ---- 左: キャラクター・吹き出し・カメラ ---- */
+  .left {
+    background: var(--red); color: var(--cream); display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 2vw 2.4vw; gap: 1.4vw; min-height: 0;
+  }
+  .bubble {
+    position: relative; background: var(--cream); color: var(--red); border-radius: 2vw; padding: 1.3vw 2vw;
+    font-size: 2vw; font-weight: 900; text-align: center; line-height: 1.45; max-width: 100%; text-wrap: balance;
+    transition: transform .2s;
+  }
+  .bubble::after {
+    content: ""; position: absolute; left: 22%; bottom: -1.4vw;
+    border: 1.4vw solid transparent; border-top-color: var(--cream); border-bottom: 0;
+  }
+  .bubble.say { animation: pop .35s ease-out; }
+  @keyframes pop { 0% { transform: scale(.9); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+  .char { height: 27vh; flex: none; }
+  .char img { height: 100%; display: block; }
+  body.no-cam .char { height: 46vh; }
+  .cam { width: 100%; background: var(--maroon); border-radius: 1.6vw; padding: 1vw; }
+  .cam[hidden] { display: none; }
+  .cam { width: auto; max-width: 100%; }
+  .cam img { height: 27vh; width: auto; max-width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 1vw; display: block; margin: 0 auto; }
+  .cam p { margin: .6vw 0 0; text-align: center; font-size: 1.3vw; font-weight: 700; }
+
+  /* ---- 右: お呼び出し中の番号（1行に1件のチケット） ---- */
+  .right { color: var(--maroon); padding: 2.2vw 3vw; display: flex; flex-direction: column; gap: 1.4vw; min-height: 0; }
+  .right h1 { margin: 0; font-size: 2.6vw; letter-spacing: .14em; color: var(--red); display: flex; align-items: center; gap: 1vw; }
+  .right h1::before { content: ""; width: 1.2vw; height: 1.2vw; border-radius: 50%; background: var(--red); }
+  .right h1.calling::before { animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  .tickets { flex: 1; min-height: 0; display: grid; gap: 1.4vw; align-content: start; --no: 6.6vw; --msg: 2.2vw; --nowidth: 20vw; }
+  .tickets.s5 { --no: 5vw; --msg: 1.8vw; --nowidth: 16vw; gap: 1vw; }
+  .tickets.s7 { grid-template-columns: 1fr 1fr; --no: 4.4vw; --msg: 1.25vw; --nowidth: 11vw; gap: 1vw; }
+  .tickets.s7 .ticket .msg { padding: 0 1.2vw; }
+  .tickets.s7 .ticket.new { box-shadow: 0 0 0 .25vw var(--toast); animation: none; }
+  .tickets.s7 .ticket.new .msg::after { display: none; }   /* 2列のときは枠の色だけで示す */
+  .tickets.s13 { grid-template-columns: repeat(4, 1fr); --no: 3.8vw; --nowidth: 100%; gap: .9vw; }   /* 13件以上は番号だけ */
+  .tickets.s13 .ticket .msg { display: none; }
+  .tickets.s13 .ticket.new { box-shadow: 0 0 0 .25vw var(--toast); animation: none; }
+  .ticket { display: flex; align-items: stretch; background: #fff; border: .25vw solid var(--line); border-radius: 1.6vw; overflow: hidden; }
+  .ticket .no {
+    background: var(--red); color: var(--cream); width: var(--nowidth); flex: none; padding: .4vw 0;
+    display: flex; align-items: baseline; justify-content: center; gap: .5vw;
+  }
+  .ticket .no b { font-size: var(--no); font-weight: 900; line-height: 1.05; }
+  .ticket .no span { font-size: calc(var(--no) * .36); font-weight: 900; }
+  .ticket .msg {
+    flex: 1; padding: 0 2vw; font-size: var(--msg); font-weight: 800; border-left: .3vw dashed var(--line);
+    display: flex; align-items: center; gap: 1vw; white-space: nowrap; overflow: hidden;
+  }
+  .ticket.new { border-color: var(--toast); box-shadow: 0 0 0 .4vw var(--toast); animation: glow 1s ease-in-out 6; }
+  @keyframes glow { 50% { box-shadow: 0 0 0 .9vw rgba(220,168,91,.35); } }
+  .ticket.new .msg::after {
+    content: "NEW"; margin-left: auto; background: var(--toast); color: var(--maroon); border-radius: .6vw;
+    padding: .2vw .8vw; font-size: calc(var(--msg) * .64);
+  }
+
+  .idle { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1.2vw; }
+  .idle .big { font-size: 3.6vw; font-weight: 900; color: var(--red); }
+  .idle .sub { font-size: 2vw; font-weight: 700; line-height: 1.6; }
+
+  .foot { display: grid; grid-template-columns: 1fr auto; gap: 1.6vw; }
+  .panel { background: #fff; border: .2vw solid var(--line); border-radius: 1.4vw; padding: 1vw 1.4vw; min-width: 0; }
+  .panel h2 { margin: 0 0 .6vw; font-size: 1.4vw; letter-spacing: .12em; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: .7vw; max-height: 7.4vw; overflow: hidden; }
+  .chip { border: .2vw solid var(--maroon); border-radius: 99px; padding: .05vw 1vw; font-size: 2vw; font-weight: 900; }
+  .chip small { font-size: 1vw; margin-left: .2vw; }
+  .chip.busy { background: var(--toast); border-color: var(--toast); }
+  .none { font-size: 1.8vw; color: var(--muted); }
+
+  .offline { position: fixed; top: 1vw; right: 1vw; background: var(--maroon); color: #fff; padding: .6vw 1.2vw; border-radius: .8vw; font-size: 1.4vw; font-weight: 800; }
+  #sound { position: fixed; left: 1vw; bottom: 1vw; border: 0; background: rgba(255,248,238,.18); color: var(--cream); font: inherit; font-size: 1.1vw; padding: .5vw 1vw; border-radius: .6vw; cursor: pointer; }
 </style>
 </head>
 <body>
-  <div class="main" id="main"></div>
-  <div class="side">
-    <div class="box cam" id="cambox" hidden><h2>番号札をカメラに映してください</h2><div class="cam-view"><img id="camimg" alt=""></div></div>
-    <div class="box robot"><h2>ロボット対応中</h2><div id="robot"></div></div>
-    <div class="box pending"><h2>準備中の番号</h2><div class="nums" id="pending"></div></div>
+  <div class="left">
+    <div class="bubble" id="bubble">呼ばれたら<br>番号札をカメラにかざしてね！</div>
+    <div class="char"><img src="/static/char.png" alt=""></div>
+    <div class="cam" id="cambox" hidden><img id="camimg" alt=""><p>↑ 枠が緑になれば受付OK</p></div>
   </div>
-  <div class="event" id="event"></div>
+  <div class="right">
+    <h1 id="title">お呼び出し中</h1>
+    <div class="tickets" id="tickets"></div>
+    <div class="foot">
+      <div class="panel"><h2>準備中の番号</h2><div class="chips" id="pending"></div></div>
+      <div class="panel"><h2>ロボット対応中</h2><div class="chips" id="robot"></div></div>
+    </div>
+  </div>
   <div class="offline" id="offline" hidden>ロボット未接続</div>
   <button id="sound">クリックで呼び出し音を有効にする</button>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
-const mk = `<svg class="mk" viewBox="0 0 6 6" shape-rendering="crispEdges"><rect width="6" height="6"/><rect x="1" y="1" width="1" height="1" fill="#fff"/><rect x="3" y="1" width="2" height="1" fill="#fff"/><rect x="2" y="2" width="1" height="2" fill="#fff"/><rect x="4" y="3" width="1" height="1" fill="#fff"/><rect x="1" y="4" width="2" height="1" fill="#fff"/></svg>`;
+const chip = (n, cls = "") => `<span class="chip ${cls}">${n}<small>番</small></span>`;
 
 // ---- 呼び出し音（ブラウザの制約で、一度画面をクリックしないと鳴らせない）
 let audio = null;
@@ -100,18 +135,6 @@ function chime() {
   });
 }
 
-// ---- 表示
-let last = "", known = null;
-const newUntil = new Map();   // 番号 -> 点滅をやめる時刻
-
-function numSize(count) {
-  if (count <= 1) return "20vw";
-  if (count <= 2) return "15vw";
-  if (count <= 4) return "11vw";
-  if (count <= 8) return "7.5vw";
-  return "5.5vw";
-}
-
 // ---- カメラ（/display?camera=0 で非表示）
 const camEnabled = new URLSearchParams(location.search).get("camera") !== "0";
 let camStreaming = false;
@@ -121,19 +144,49 @@ function renderCamera(available) {
   if (!want && camStreaming) $("#camimg").removeAttribute("src");
   camStreaming = want;
   $("#cambox").hidden = !want;
-  document.body.classList.toggle("with-cam", want);
+  document.body.classList.toggle("no-cam", !want);
 }
 $("#camimg").addEventListener("error", () => { camStreaming = false; });
+
+// ---- 吹き出し（ふだんは案内。お客様向けメッセージが来たら8秒だけ表示）
+let bubbleDefault = "", sayUntil = 0, sayTimer;
+function setBubble(text) {
+  bubbleDefault = text;
+  if (Date.now() >= sayUntil) $("#bubble").innerHTML = text;
+}
+function say(text) {
+  const b = $("#bubble");
+  b.textContent = text;
+  b.classList.remove("say"); void b.offsetWidth; b.classList.add("say");
+  sayUntil = Date.now() + 8000;
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => { sayUntil = 0; b.innerHTML = bubbleDefault; }, 8000);
+}
+let lastSeq = null;
+function showEvent(text, seq) {
+  if (seq === lastSeq) return;
+  const first = lastSeq === null;
+  lastSeq = seq;
+  if (!first && text) say(text);   // 開いた直後に古いメッセージを出さない
+}
+
+// ---- 表示
+let last = "", known = null;
+const newUntil = new Map();   // 番号 -> 強調をやめる時刻
 
 function render(st) {
   renderCamera(!!(st && st.camera));
   $("#offline").hidden = !!(st && st.connected);
   const q = st && st.queue;
-  const key = JSON.stringify(q && { ...q, progress_text: "" });
+  const key = JSON.stringify(q && { ...q, progress: 0, progress_text: "" });
   if (key === last) return;
   last = key;
-  const main = $("#main");
-  if (!q) { main.className = "main"; main.innerHTML = `<div class="idle msg">準備中です</div>`; return; }
+  if (!q) {
+    $("#title").className = "";
+    $("#tickets").className = "tickets";
+    $("#tickets").innerHTML = `<div class="idle"><div class="big">準備中です</div></div>`;
+    return;
+  }
 
   // 新しく呼び出された番号
   const nums = q.ready.map((o) => o.order_number);
@@ -144,39 +197,37 @@ function render(st) {
   }
   known = new Set(nums);
 
+  const tk = $("#tickets");
   if (nums.length) {
-    main.className = "main calling";
-    main.innerHTML = `<div class="label">お呼び出し中</div>
-      <div class="called" style="font-size:${numSize(nums.length)}">
-        ${nums.map((n) => `<span class="${(newUntil.get(n) || 0) > Date.now() ? "new" : ""}">${n}</span>`).join("")}
-      </div>
-      <div class="marker-hint">${mk}<span>番号札のマーカーを<br>カメラにかざしてください</span></div>`;
+    $("#title").className = "calling";
+    $("#title").textContent = "お呼び出し中";
+    tk.className = "tickets" + (nums.length > 12 ? " s13" : nums.length > 6 ? " s7" : nums.length > 4 ? " s5" : "");
+    // 新しく呼んだ番号を上に（1行に1件なので「1」「2」と「12」を取り違えない）
+    tk.innerHTML = [...nums].reverse().map((n) => `
+      <div class="ticket ${(newUntil.get(n) || 0) > Date.now() ? "new" : ""}">
+        <div class="no"><b>${n}</b><span>番</span></div>
+        <div class="msg">お受け取りください</div>
+      </div>`).join("");
+    setBubble("呼ばれたら<br>番号札をカメラにかざしてね！");
   } else if (q.pending.length || q.active) {
-    main.className = "main";
-    main.innerHTML = `<div class="label">お呼び出し</div>
-      <div class="idle"><div class="msg">ご注文の品を準備しています<br>番号が表示されるまでお待ちください</div></div>`;
+    $("#title").className = "";
+    $("#title").textContent = "お呼び出し";
+    tk.className = "tickets";
+    tk.innerHTML = `<div class="idle"><div class="big">ただいま準備中です</div>
+      <div class="sub">できあがったら、ここに番号が出ます。<br>番号札を持ってお待ちください。</div></div>`;
+    setBubble("いまつくってるよ！<br>もう少し待っててね");
   } else {
-    main.className = "main";
-    main.innerHTML = `<div class="label">いらっしゃいませ</div><div class="idle"><div class="msg">ご注文は受付でどうぞ</div></div>`;
+    $("#title").className = "";
+    $("#title").textContent = "いらっしゃいませ";
+    tk.className = "tickets";
+    tk.innerHTML = `<div class="idle"><div class="big">ご注文は受付でどうぞ</div>
+      <div class="sub">番号札をお渡しします。<br>できあがったらこの画面でお呼びします。</div></div>`;
+    setBubble("いらっしゃいませ！");
   }
 
-  $("#robot").innerHTML = q.active
-    ? `<div class="num">${q.active.order_number}<small>番</small></div><div class="bar"><div style="width:${Math.round(q.progress * 100)}%"></div></div>`
-    : `<div class="none">—</div>`;
-  $("#pending").innerHTML = q.pending.length
-    ? q.pending.map((o) => `<span>${o.order_number}</span>`).join("") : `<div class="none">—</div>`;
+  $("#pending").innerHTML = q.pending.length ? q.pending.map((o) => chip(o.order_number)).join("") : `<span class="none">—</span>`;
+  $("#robot").innerHTML = q.active ? chip(q.active.order_number, "busy") : `<span class="none">—</span>`;
   showEvent(q.public_message, q.public_seq);
-}
-
-let lastSeq = null, eventTimer;
-function showEvent(text, seq) {
-  if (seq === lastSeq) return;
-  const first = lastSeq === null;
-  lastSeq = seq;
-  if (first || !text) return;   // 開いた直後に古いメッセージを出さない
-  $("#event").textContent = text;
-  clearTimeout(eventTimer);
-  eventTimer = setTimeout(() => ($("#event").textContent = ""), 8000);
 }
 
 async function poll() {
@@ -184,8 +235,14 @@ async function poll() {
 }
 poll();
 setInterval(poll, 1000);
-// 点滅の終了を反映
-setInterval(() => { if ([...newUntil.values()].some((t) => t < Date.now())) { last = ""; for (const [n, t] of newUntil) if (t < Date.now()) newUntil.delete(n); } }, 1000);
+// 強調の終了を反映
+setInterval(() => {
+  const now = Date.now();
+  if ([...newUntil.values()].some((t) => t < now)) {
+    last = "";
+    for (const [n, t] of newUntil) if (t < now) newUntil.delete(n);
+  }
+}, 1000);
 </script>
 </body>
 </html>

@@ -182,3 +182,11 @@ def test_camera_timeout():
     assert fb.get() == (b"x", 1)
     time.sleep(0.08)
     assert fb.get() is None
+
+
+def test_display_assets(tmp_path):
+    c, _ = make(tmp_path)
+    html = c.get("/display").text
+    assert "/static/char.png" in html
+    r = c.get("/static/char.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
