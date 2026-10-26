@@ -187,12 +187,60 @@ class MyRobot(PrepareNodeBase):
 起動時は `use_stub:=false` にして自作ノードを別に起動する。
 `/shop/prepare_order` の購読者がいないときは、shop_server は依頼を送らず画面に「ロボット側が起動していません」と出す。
 
-## テスト
-
-```bash
-cd src/shop_robot && python3 -m pytest test/
-```
 コアロジック（キュー状態機械・商品管理・ArUco 検出・受取動作の実行・トピック形式の変換）と Web API を ROS なしでテストする。
+
+
+## 高専祭用デモ
+### ターミナル1
+Nextage用コンテナ起動
+```bash
+./Nextage_ros2/run.bash
+```
+Nextageセットアップ
+```bash
+cd melodic_ws
+source devel/setup.bash
+./src/start_nextage_system.sh
+```
+
+### ターミナル2
+Nextage用コンテナ起動
+```bash
+./Nextage_ros2/enter.bash
+```
+Nextage動作起動
+```bash
+cd melodic_ws
+source devel/setup.bash
+roslaunch tork_moveit_tutorial order_picker.launch hardware:=false
+```
+
+### ターミナル3
+Nextage用コンテナ起動
+```bash
+./Nextage_ros2/enter.bash
+```
+ros2 bridge
+```bash
+cd dashing_ws
+source /opt/ros/melodic/setup.bash
+source /opt/ros/dashing/setup.bash
+source install/setup.bash
+export ROS_MASTER_URI=http://localhost:11311
+ros2 run ros1_bridge dynamic_bridge --bridge-all-topics
+```
+### ターミナル4
+注文コンテナ起動
+```bash
+./ros2_huble.bash
+```
+注文サイト起動
+```bash
+ros2 launch shop_robot shop_system.launch.py
+```
+
+
+
 
 ## 動作確認用コマンド
 
